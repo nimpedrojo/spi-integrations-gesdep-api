@@ -101,6 +101,8 @@ GET /health
 GET /teams
 GET /teams/extended
 GET /players/:id
+GET /docs
+GET /docs/json
 ```
 
 Semántica actual:
@@ -116,6 +118,10 @@ Semántica actual:
 El campo `meta.source` puede ser:
 - `mysql`
 - `gesdep`
+
+Documentación:
+- `/docs`: interfaz Swagger UI
+- `/docs/json`: especificación OpenAPI en JSON
 
 ## Health check
 ```bash

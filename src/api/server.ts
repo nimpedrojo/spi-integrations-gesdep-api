@@ -1,5 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import swagger from '@fastify/swagger';
+import swaggerUi from '@fastify/swagger-ui';
 import { logger } from '../shared/logger.js';
 import { config } from '../shared/config.js';
 import { registerHealthRoute } from './routes/health.js';
@@ -17,6 +19,33 @@ export const buildServer = (deps: BuildServerDeps = {}) => {
   const app = Fastify({ logger: logger as any });
 
   app.register(cors, { origin: true });
+  app.register(swagger, {
+    openapi: {
+      info: {
+        title: 'Gesdep Middleware API',
+        description: 'REST API sobre Gesdep.net con cache y lectura desde MySQL.',
+        version: '0.1.0'
+      },
+      servers: [
+        {
+          url: `http://localhost:${config.PORT}`,
+          description: 'Local'
+        }
+      ],
+      tags: [
+        { name: 'health', description: 'Estado del servicio' },
+        { name: 'teams', description: 'Equipos y roster' },
+        { name: 'players', description: 'Detalle de jugadores' }
+      ]
+    }
+  });
+  app.register(swaggerUi, {
+    routePrefix: '/docs',
+    uiConfig: {
+      docExpansion: 'list',
+      deepLinking: false
+    }
+  });
   registerHealthRoute(app);
   registerTeamsRoute(app, deps.teamsRoute);
   registerPlayersRoute(app, deps.playersRoute);

@@ -18,6 +18,15 @@ export const registerPlayersRoute = (app: FastifyInstance, deps: RegisterPlayers
     Reply: GetPlayerResponse;
   }>('/players/:id', {
     schema: {
+      tags: ['players'],
+      summary: 'Detalle de un jugador',
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string' }
+        }
+      },
       response: {
         200: {
           type: 'object',
@@ -48,7 +57,7 @@ export const registerPlayersRoute = (app: FastifyInstance, deps: RegisterPlayers
           }
         }
       }
-    }
+    } as any
   }, async (request, reply) => {
     const payload = await readService.getById(request.params.id);
     reply.send(payload);
