@@ -1,0 +1,43 @@
+{
+  "name": "gesdep-middleware",
+  "version": "0.1.0",
+  "description": "Middleware that exposes a REST API over Gesdep.net via browser automation.",
+  "main": "dist/api/server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/api/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/api/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" \"tests/**/*.{ts,tsx}\"",
+    "typecheck": "tsc --noEmit",
+    "probe:login": "tsx src/scripts/probe-login.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.0",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.0",
+    "fastify": "^4.26.2",
+    "fastify-plugin": "^4.5.0",
+    "knex": "^3.1.0",
+    "mysql2": "^3.9.0",
+    "pino": "^9.1.0",
+    "pino-pretty": "^11.2.1",
+    "playwright": "^1.42.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.57.0",
+    "eslint-config-standard-with-typescript": "^42.0.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-n": "^16.6.2",
+    "eslint-plugin-promise": "^6.1.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.4.0"
+  }
+}
