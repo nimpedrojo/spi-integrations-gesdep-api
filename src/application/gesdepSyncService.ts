@@ -38,7 +38,7 @@ export class GesdepSyncService {
 
       logger.info({ teams: teams.length, players: uniquePlayerIds.length }, 'Starting Gesdep batch sync');
 
-      const playerDetails = await Promise.all(uniquePlayerIds.map(async (playerId) => (await this.deps.playerUseCase.execute(playerId)).item));
+      const playerDetails = await this.deps.playerUseCase.executeBatch(uniquePlayerIds);
       const playerDetailsById = new Map(playerDetails.map((player) => [player.id, player]));
       const syncedAt = new Date();
 

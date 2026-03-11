@@ -49,4 +49,29 @@ describe('GetPlayerUseCase', () => {
       }
     });
   });
+
+  it('uses batch navigator when available', async () => {
+    const navigator: PlayerNavigator = {
+      fetchPlayerHtml: vi.fn(),
+      fetchPlayerHtmlBatch: vi.fn().mockResolvedValue({
+        'PLAYER-1': mockedPlayerHtml
+      })
+    };
+
+    const useCase = new GetPlayerUseCase({ navigator });
+    await expect(useCase.executeBatch(['PLAYER-1'])).resolves.toEqual([
+      {
+        id: 'PLAYER-1',
+        shortName: 'Mario',
+        fullName: 'GARCIA LOPEZ, MARIO',
+        fields: {
+          dorsal: '7',
+          equipo: 'Cadete A',
+          fecha_nacimiento: '01/01/2010'
+        }
+      }
+    ]);
+
+    expect(navigator.fetchPlayerHtmlBatch).toHaveBeenCalledWith(['PLAYER-1']);
+  });
 });

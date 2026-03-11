@@ -130,6 +130,52 @@ export class GesdepClient {
     }
   }
 
+  async fetchPlayerHtmlBatch(playerIds: string[]): Promise<Record<string, string>> {
+    if (playerIds.length === 0) {
+      return {};
+    }
+
+    const authPage = await this.openAuthenticatedPage();
+    const results: Record<string, string> = {};
+    const pendingPlayerIds = [...playerIds];
+
+    const worker = async () => {
+      while (pendingPlayerIds.length > 0) {
+        const playerId = pendingPlayerIds.shift();
+
+        if (!playerId) {
+          return;
+        }
+
+        const page = await this.browserContext!.newPage();
+
+        try {
+          await page.goto(new URL(`${selectors.players.path}?idjug=${encodeURIComponent(playerId)}`, config.GESDEP_BASE_URL).toString(), {
+            waitUntil: 'domcontentloaded'
+          });
+          await page.waitForSelector(selectors.players.ready, {
+            state: 'attached'
+          });
+          results[playerId] = await page.content();
+        } catch (err) {
+          logger.error({ err, playerId }, 'Reading player detail HTML failed in batch mode');
+          throw new ExternalServiceError('Failed to read Gesdep player detail HTML');
+        } finally {
+          await page.close();
+        }
+      }
+    };
+
+    try {
+      await Promise.all(
+        Array.from({ length: Math.min(config.GESDEP_DETAIL_CONCURRENCY, playerIds.length) }, async () => worker())
+      );
+      return results;
+    } finally {
+      await authPage.close();
+    }
+  }
+
   async fetchTeamHtmlBatch(teamIds: string[]): Promise<Record<string, string>> {
     if (teamIds.length === 0) {
       return {};
