@@ -17,16 +17,14 @@ describe('TeamsParser', () => {
         name: 'JUVENIL PREFERENTE',
         category: null,
         season: '2025-26',
-        status: 'active',
-        players: []
+        status: 'active'
       },
       {
         id: '16A1FF67E07BE37D',
         name: '1ª JUVENIL',
         category: null,
         season: '2025-26',
-        status: 'active',
-        players: []
+        status: 'active'
       }
     ]);
   });

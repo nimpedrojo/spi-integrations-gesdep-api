@@ -1,6 +1,6 @@
 import { load, type CheerioAPI } from 'cheerio';
 import type { AnyNode } from 'domhandler';
-import { TeamItem, TeamPlayer } from '../../domain/types.js';
+import { TeamListItem, TeamItem, TeamPlayer } from '../../domain/types.js';
 import { selectors } from '../selectors/index.js';
 import { ParsingError } from '../../shared/errors.js';
 
@@ -55,7 +55,7 @@ const extractLabeledValue = ($: CheerioAPI, rootSelector: string, label: string)
 };
 
 export class TeamsParser {
-  parse(html: string): TeamItem[] {
+  parse(html: string): TeamListItem[] {
     const $ = load(html);
     const list = $(selectors.teams.list).first();
 
@@ -75,7 +75,7 @@ export class TeamsParser {
     const panelTitle = normalizeText($(selectors.teams.activePanelTitle).first().text());
     const status = panelTitle?.toLowerCase().includes('activos') ? 'active' : null;
     const season = extractSeason(normalizeText($(selectors.teams.season).first().text()));
-    const items: TeamItem[] = [];
+    const items: TeamListItem[] = [];
 
     itemsRoot.each((_index, row) => {
       const link = $(row).find(selectors.teams.link).first();
@@ -91,8 +91,7 @@ export class TeamsParser {
         name,
         category: null,
         season,
-        status,
-        players: []
+        status
       });
     });
 

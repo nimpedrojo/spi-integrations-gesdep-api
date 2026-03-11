@@ -44,7 +44,7 @@ const mockedDetailHtml = `
 `;
 
 describe('ListTeamsUseCase', () => {
-  it('returns normalized teams payload from navigator HTML', async () => {
+  it('returns normalized basic teams payload from navigator HTML', async () => {
     const navigator: TeamsNavigator = {
       fetchTeamsHtml: vi.fn().mockResolvedValue(mockedListHtml),
       fetchTeamHtml: vi.fn().mockResolvedValue(mockedDetailHtml),
@@ -55,6 +55,33 @@ describe('ListTeamsUseCase', () => {
 
     const useCase = new ListTeamsUseCase({ navigator });
     await expect(useCase.execute()).resolves.toEqual({
+      items: [
+        {
+          id: 'TEAM-10',
+          name: 'Cadete A',
+          category: null,
+          season: '2025-26',
+          status: 'active'
+        }
+      ],
+      meta: {
+        source: 'gesdep',
+        count: 1
+      }
+    });
+  });
+
+  it('returns normalized extended teams payload from navigator HTML', async () => {
+    const navigator: TeamsNavigator = {
+      fetchTeamsHtml: vi.fn().mockResolvedValue(mockedListHtml),
+      fetchTeamHtml: vi.fn().mockResolvedValue(mockedDetailHtml),
+      fetchTeamHtmlBatch: vi.fn().mockResolvedValue({
+        'TEAM-10': mockedDetailHtml
+      })
+    };
+
+    const useCase = new ListTeamsUseCase({ navigator });
+    await expect(useCase.executeExtended()).resolves.toEqual({
       items: [
         {
           id: 'TEAM-10',

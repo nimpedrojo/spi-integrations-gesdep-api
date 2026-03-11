@@ -11,23 +11,38 @@ export const teamPlayerSchema = z.object({
   fullName: z.string()
 });
 
-export const teamItemSchema = z.object({
+export const basicTeamItemSchema = z.object({
   id: z.string(),
   name: z.string(),
   category: z.string().nullable(),
   season: z.string().nullable(),
-  status: z.string().nullable(),
+  status: z.string().nullable()
+});
+
+export const extendedTeamItemSchema = basicTeamItemSchema.extend({
   players: z.array(teamPlayerSchema)
 });
 
+const teamsMetaSchema = z.object({
+  source: z.literal('gesdep'),
+  count: z.number().int().nonnegative()
+});
+
 export const listTeamsResponseSchema = z.object({
-  items: z.array(teamItemSchema),
+  items: z.array(basicTeamItemSchema),
   meta: z.object({
     source: z.literal('gesdep'),
     count: z.number().int().nonnegative()
   })
 });
 
-export type TeamItem = z.infer<typeof teamItemSchema>;
+export const listTeamsExtendedResponseSchema = z.object({
+  items: z.array(extendedTeamItemSchema),
+  meta: teamsMetaSchema
+});
+
+export type TeamListItem = z.infer<typeof basicTeamItemSchema>;
+export type TeamItem = z.infer<typeof extendedTeamItemSchema>;
 export type ListTeamsResponse = z.infer<typeof listTeamsResponseSchema>;
+export type ListTeamsExtendedResponse = z.infer<typeof listTeamsExtendedResponseSchema>;
 export type TeamPlayer = z.infer<typeof teamPlayerSchema>;

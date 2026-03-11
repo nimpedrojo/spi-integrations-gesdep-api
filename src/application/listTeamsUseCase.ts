@@ -1,4 +1,10 @@
-import { ListTeamsResponse, listTeamsResponseSchema } from '../domain/types.js';
+import {
+  ListTeamsExtendedResponse,
+  ListTeamsResponse,
+  TeamItem,
+  listTeamsExtendedResponseSchema,
+  listTeamsResponseSchema
+} from '../domain/types.js';
 import { TeamsParser } from '../gesdep/parsers/teamsParser.js';
 import { saveHtmlSnapshot } from '../gesdep/utils/artifacts.js';
 import { ParsingError } from '../shared/errors.js';
@@ -26,11 +32,38 @@ export class ListTeamsUseCase {
 
     try {
       const items = this.parser.parse(html);
+      return listTeamsResponseSchema.parse({
+        items,
+        meta: {
+          source: 'gesdep',
+          count: items.length
+        }
+      });
+    } catch (error) {
+      if (error instanceof ParsingError) {
+        const snapshotPath = await saveHtmlSnapshot(html, 'teams-parse-failed');
+        error.context = { ...error.context, snapshotPath };
+      }
+
+      throw error;
+    }
+  }
+
+  async executeExtended(): Promise<ListTeamsExtendedResponse> {
+    const html = await this.deps.navigator.fetchTeamsHtml();
+
+    try {
+      const items = this.parser.parse(html);
       const detailHtmlByTeamId = this.deps.navigator.fetchTeamHtmlBatch
         ? await this.deps.navigator.fetchTeamHtmlBatch(items.map((item) => item.id))
         : Object.fromEntries(await Promise.all(items.map(async (item) => [item.id, await this.deps.navigator.fetchTeamHtml(item.id)])));
 
-      for (const item of items) {
+      const enrichedItems: TeamItem[] = items.map((item) => ({
+        ...item,
+        players: []
+      }));
+
+      for (const item of enrichedItems) {
         const teamHtml = detailHtmlByTeamId[item.id];
 
         if (!teamHtml) {
@@ -42,11 +75,11 @@ export class ListTeamsUseCase {
         item.players = detail.players;
       }
 
-      return listTeamsResponseSchema.parse({
-        items,
+      return listTeamsExtendedResponseSchema.parse({
+        items: enrichedItems,
         meta: {
           source: 'gesdep',
-          count: items.length
+          count: enrichedItems.length
         }
       });
     } catch (error) {
