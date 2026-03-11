@@ -5,6 +5,7 @@ import { config } from '../shared/config.js';
 import { registerHealthRoute } from './routes/health.js';
 import { AppError } from '../shared/errors.js';
 import { registerTeamsRoute, RegisterTeamsRouteDeps } from './routes/teams.js';
+import { registerPlayersRoute } from './routes/players.js';
 
 export interface BuildServerDeps {
   teamsRoute?: RegisterTeamsRouteDeps;
@@ -16,6 +17,7 @@ export const buildServer = (deps: BuildServerDeps = {}) => {
   app.register(cors, { origin: true });
   registerHealthRoute(app);
   registerTeamsRoute(app, deps.teamsRoute);
+  registerPlayersRoute(app);
 
   app.setErrorHandler((err, _req, reply) => {
     const status = err instanceof AppError ? err.statusCode : 500;

@@ -111,6 +111,25 @@ export class GesdepClient {
     }
   }
 
+  async fetchPlayerHtml(playerId: string): Promise<string> {
+    const page = await this.openAuthenticatedPage();
+
+    try {
+      await page.goto(new URL(`${selectors.players.path}?idjug=${encodeURIComponent(playerId)}`, config.GESDEP_BASE_URL).toString(), {
+        waitUntil: 'domcontentloaded'
+      });
+      await page.waitForSelector(selectors.players.ready, {
+        state: 'attached'
+      });
+      return await page.content();
+    } catch (err) {
+      logger.error({ err, playerId }, 'Reading player detail HTML failed');
+      throw new ExternalServiceError('Failed to read Gesdep player detail HTML');
+    } finally {
+      await page.close();
+    }
+  }
+
   async fetchTeamHtmlBatch(teamIds: string[]): Promise<Record<string, string>> {
     if (teamIds.length === 0) {
       return {};

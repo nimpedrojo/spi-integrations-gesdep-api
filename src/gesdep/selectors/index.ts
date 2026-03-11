@@ -21,5 +21,16 @@ export const selectors = {
     detailPlayerRow: 'tr[onclick*="idjug="]',
     detailPlayerShortName: 'td:nth-child(2) > div:first-child',
     detailPlayerFullName: 'td:nth-child(2) > div:nth-child(2)'
+  },
+  players: {
+    path: '/v3/forms/players/frmjugadores.aspx',
+    ready: '.page-content-inner',
+    card: '#ctl00_ContentPlaceHolder1_lblFichajug',
+    headerRow: '#ctl00_ContentPlaceHolder1_lblFichajug table.table tr',
+    sportFieldsTables: '#ctl00_ContentPlaceHolder1_lblFichajug .row table',
+    statsTable: '#ctl00_ContentPlaceHolder1_lblFichajug .table-responsive table',
+    otherSportData: '#ctl00_ContentPlaceHolder1_lblDeporOtrosDatos',
+    observations: '#ctl00_ContentPlaceHolder1_txtObservaciones',
+    positions: '#ctl00_ContentPlaceHolder1_lblPosiciones'
   }
 };
