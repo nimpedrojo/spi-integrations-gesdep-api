@@ -1,5 +1,6 @@
 import { Browser, BrowserContext, chromium, Page } from 'playwright';
 import { config } from '../shared/config.js';
+import { ExternalServiceError } from '../shared/errors.js';
 import { logger } from '../shared/logger.js';
 
 /**
@@ -16,7 +17,20 @@ export class SessionManager {
     if (this.context) return this.context;
 
     logger.info({ headless: config.GESDEP_HEADLESS }, 'Launching Playwright browser');
-    this.browser = await chromium.launch({ headless: config.GESDEP_HEADLESS });
+    try {
+      this.browser = await chromium.launch({ headless: config.GESDEP_HEADLESS });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown Playwright launch error';
+
+      if (message.includes("Executable doesn't exist")) {
+        throw new ExternalServiceError('Playwright browser is not installed. Run `npm run install:browsers` and retry.', {
+          headless: config.GESDEP_HEADLESS
+        });
+      }
+
+      throw error;
+    }
+
     this.context = await this.browser.newContext({
       baseURL: config.GESDEP_BASE_URL
     });

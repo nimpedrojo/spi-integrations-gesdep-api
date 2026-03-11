@@ -9,10 +9,10 @@ const LOGIN_URL_PLACEHOLDER = 'v3/login.aspx'; // TODO: adjust to the real login
 
 // TODO: Replace selectors with real Gesdep ones before running against production.
 export const SELECTORS = {
-  username: 'txtNombre',
-  password: 'txtContra',
-  submit: 'btnEntrar',
-  success: 'ctl00_lblUsuario' // e.g., a nav element unique to logged-in users.
+  username: '#txtNombre',
+  password: '#txtContra',
+  submit: '#btnEntrar',
+  success: '#ctl00_lblUsuario' // TODO: verify against the authenticated landing page.
 } as const;
 
 const ACTION_TIMEOUT_MS = 15_000;

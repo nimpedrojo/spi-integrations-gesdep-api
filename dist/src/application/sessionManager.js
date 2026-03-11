@@ -1,13 +1,7 @@
-process.env.PLAYWRIGHT_BROWSERS_PATH = process.env.PLAYWRIGHT_BROWSERS_PATH ?? '.pw-browsers';
+import { chromium } from 'playwright';
 import { config } from '../shared/config.js';
+import { ExternalServiceError } from '../shared/errors.js';
 import { logger } from '../shared/logger.js';
-let playwright = null;
-const loadPlaywright = async () => {
-    if (!playwright) {
-        playwright = await import('playwright');
-    }
-    return playwright;
-};
 /**
  * Session manager for Gesdep automation.
  * - Lazily creates a single browser/context.
@@ -18,16 +12,19 @@ export class SessionManager {
     async init() {
         if (this.context)
             return this.context;
-        const { chromium } = await loadPlaywright();
-        logger.info({
-            headless: config.GESDEP_HEADLESS,
-            browsersPath: process.env.PLAYWRIGHT_BROWSERS_PATH,
-            executablePath: config.GESDEP_CHROMIUM_PATH
-        }, 'Launching Playwright browser');
-        this.browser = await chromium.launch({
-            headless: config.GESDEP_HEADLESS,
-            executablePath: config.GESDEP_CHROMIUM_PATH
-        });
+        logger.info({ headless: config.GESDEP_HEADLESS }, 'Launching Playwright browser');
+        try {
+            this.browser = await chromium.launch({ headless: config.GESDEP_HEADLESS });
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown Playwright launch error';
+            if (message.includes("Executable doesn't exist")) {
+                throw new ExternalServiceError('Playwright browser is not installed. Run `npm run install:browsers` and retry.', {
+                    headless: config.GESDEP_HEADLESS
+                });
+            }
+            throw error;
+        }
         this.context = await this.browser.newContext({
             baseURL: config.GESDEP_BASE_URL
         });

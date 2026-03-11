@@ -11,7 +11,6 @@ const envSchema = z.object({
         .default('true')
         .transform((v) => v === 'true' || v === '1')
         .pipe(z.boolean()),
-    GESDEP_CHROMIUM_PATH: z.string().optional(),
     GESDEP_USERNAME: z.string(),
     GESDEP_PASSWORD: z.string(),
     DATABASE_HOST: z.string().default('localhost'),
