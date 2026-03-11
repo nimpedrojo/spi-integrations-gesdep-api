@@ -5,10 +5,12 @@ import { config } from '../shared/config.js';
 import { registerHealthRoute } from './routes/health.js';
 import { AppError } from '../shared/errors.js';
 import { registerTeamsRoute, RegisterTeamsRouteDeps } from './routes/teams.js';
-import { registerPlayersRoute } from './routes/players.js';
+import { registerPlayersRoute, RegisterPlayersRouteDeps } from './routes/players.js';
+import { ensureDatabaseSchema } from '../db/schema.js';
 
 export interface BuildServerDeps {
   teamsRoute?: RegisterTeamsRouteDeps;
+  playersRoute?: RegisterPlayersRouteDeps;
 }
 
 export const buildServer = (deps: BuildServerDeps = {}) => {
@@ -17,7 +19,7 @@ export const buildServer = (deps: BuildServerDeps = {}) => {
   app.register(cors, { origin: true });
   registerHealthRoute(app);
   registerTeamsRoute(app, deps.teamsRoute);
-  registerPlayersRoute(app);
+  registerPlayersRoute(app, deps.playersRoute);
 
   app.setErrorHandler((err, _req, reply) => {
     const status = err instanceof AppError ? err.statusCode : 500;
@@ -29,8 +31,11 @@ export const buildServer = (deps: BuildServerDeps = {}) => {
 };
 
 if (process.env.NODE_ENV !== 'test') {
-  const app = buildServer();
-  app.listen({ port: config.PORT, host: '0.0.0.0' })
+  ensureDatabaseSchema()
+    .then(() => {
+      const app = buildServer();
+      return app.listen({ port: config.PORT, host: '0.0.0.0' });
+    })
     .then(() => logger.info(`Server listening on ${config.PORT}`))
     .catch((err) => {
       logger.error(err, 'Failed to start server');

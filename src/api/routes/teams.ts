@@ -2,13 +2,16 @@ import { FastifyInstance } from 'fastify';
 import { GesdepClient } from '../../gesdep/actions/gesdepClient.js';
 import { ListTeamsUseCase } from '../../application/listTeamsUseCase.js';
 import { ListTeamsExtendedResponse, ListTeamsResponse } from '../../domain/types.js';
+import { TeamReadService } from '../../application/teamReadService.js';
 
 export interface RegisterTeamsRouteDeps {
-  useCase?: ListTeamsUseCase;
+  readService?: TeamReadService;
 }
 
 export const registerTeamsRoute = (app: FastifyInstance, deps: RegisterTeamsRouteDeps = {}) => {
-  const useCase = deps.useCase ?? new ListTeamsUseCase({ navigator: new GesdepClient() });
+  const readService = deps.readService ?? new TeamReadService({
+    onlineUseCase: new ListTeamsUseCase({ navigator: new GesdepClient() })
+  });
 
   app.get<{
     Reply: ListTeamsResponse;
@@ -37,7 +40,7 @@ export const registerTeamsRoute = (app: FastifyInstance, deps: RegisterTeamsRout
               type: 'object',
               required: ['source', 'count'],
               properties: {
-                source: { type: 'string', const: 'gesdep' },
+                source: { type: 'string', enum: ['gesdep', 'mysql'] },
                 count: { type: 'integer', minimum: 0 }
               }
             }
@@ -46,7 +49,7 @@ export const registerTeamsRoute = (app: FastifyInstance, deps: RegisterTeamsRout
       }
     }
   }, async (_request, reply) => {
-    const payload = await useCase.execute();
+    const payload = await readService.listBasic();
     reply.send(payload);
   });
 
@@ -89,7 +92,7 @@ export const registerTeamsRoute = (app: FastifyInstance, deps: RegisterTeamsRout
               type: 'object',
               required: ['source', 'count'],
               properties: {
-                source: { type: 'string', const: 'gesdep' },
+                source: { type: 'string', enum: ['gesdep', 'mysql'] },
                 count: { type: 'integer', minimum: 0 }
               }
             }
@@ -98,7 +101,7 @@ export const registerTeamsRoute = (app: FastifyInstance, deps: RegisterTeamsRout
       }
     }
   }, async (_request, reply) => {
-    const payload = await useCase.executeExtended();
+    const payload = await readService.listExtended();
     reply.send(payload);
   });
 };

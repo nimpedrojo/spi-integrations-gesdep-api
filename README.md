@@ -1,8 +1,19 @@
 # gesdep-middleware
 
-Middleware that exposes a stable JSON REST API over Gesdep.net using Playwright automation.
+Middleware que expone una API REST estable sobre Gesdep.net.
 
-## Prerequisites
+Arquitectura actual:
+- La API intenta leer primero desde MySQL
+- Delante de MySQL hay una cache TTL en memoria
+- Si la BD no tiene datos, la API puede hacer fallback al scraping online de Gesdep
+- Un proceso batch sincroniza equipos y jugadores desde Gesdep hacia MySQL
+
+Objetivo operativo:
+- minimizar navegación Playwright en caliente
+- responder en milisegundos desde BD/cache
+- dejar Gesdep como origen de sincronización, no como backend de serving
+
+## Requisitos
 - Node.js 18+
 - MySQL 8+
 - pnpm or npm
@@ -15,7 +26,7 @@ pnpm install:browsers  # or npm run install:browsers
 cp .env.example .env   # fill credentials (GESDEP_*) and DB settings
 ```
 
-Required env vars:
+Variables obligatorias:
 - `GESDEP_USERNAME`
 - `GESDEP_PASSWORD`
 - `DATABASE_HOST`
@@ -24,18 +35,39 @@ Required env vars:
 - `DATABASE_PASSWORD`
 - `DATABASE_NAME`
 
-## Development
+Variables recomendadas:
+- `GESDEP_DETAIL_CONCURRENCY`
+- `CACHE_TTL_TEAMS_SECONDS`
+- `CACHE_TTL_TEAMS_EXTENDED_SECONDS`
+- `CACHE_TTL_PLAYER_SECONDS`
+
+## Modelo de ejecución
+Flujo normal de lectura:
+1. Llega una request a la API
+2. Se consulta la cache en memoria
+3. Si no hay hit, se consulta MySQL
+4. Si MySQL está vacío, se hace fallback a Gesdep
+5. La respuesta se almacena en cache durante su TTL
+
+Flujo de sincronización:
+1. El job batch hace login en Gesdep
+2. Descarga el listado extendido de equipos
+3. Descarga la ficha de cada jugador detectado
+4. Reemplaza el snapshot local en MySQL
+5. Invalida la cache en memoria
+
+## Desarrollo
 ```bash
 pnpm dev               # fast reload with tsx
 ```
 
-## Build & Run
+## Build y ejecución
 ```bash
 pnpm build
 pnpm start
 ```
 
-The production entrypoint is `dist/src/api/server.js`.
+Entrypoint de producción: `dist/src/api/server.js`.
 
 ## Tests
 ```bash
@@ -48,16 +80,44 @@ pnpm lint
 pnpm typecheck
 ```
 
-## Probe Login
+## Scripts útiles
 ```bash
 pnpm probe:login       # or npm run probe:login
+pnpm sync:gesdep       # or npm run sync:gesdep
 ```
 
-If Playwright browsers are missing, install them with `pnpm install:browsers`.
+Si faltan los navegadores de Playwright:
+```bash
+pnpm install:browsers
+```
 
-Successful probes save artifacts under `artifacts/screenshots` and `artifacts/html`.
+Los artefactos de debugging se guardan en:
+- `artifacts/screenshots`
+- `artifacts/html`
 
-## Health Check
+## Endpoints
+```bash
+GET /health
+GET /teams
+GET /teams/extended
+GET /players/:id
+```
+
+Semántica actual:
+- `/teams`:
+  - lectura desde cache o MySQL
+  - fallback online si la BD aún no tiene datos
+- `/teams/extended`:
+  - igual que `/teams`, pero con roster de jugadores
+- `/players/:id`:
+  - lectura desde cache o MySQL
+  - fallback online si el jugador no existe en BD
+
+El campo `meta.source` puede ser:
+- `mysql`
+- `gesdep`
+
+## Health check
 ```bash
 curl http://localhost:3000/health
 ```
@@ -67,10 +127,49 @@ Expected response:
 {"status":"ok"}
 ```
 
-## Why Knex?
-Knex is a lightweight, mature query builder with first-class MySQL support. It keeps the footprint small while allowing future migration to an ORM if needed.
+## Batch Sync
+Ejecuta una sincronización completa desde Gesdep hacia MySQL:
+```bash
+npm run sync:gesdep
+```
+
+El proceso:
+- inicializa el esquema si no existe
+- registra una fila en `sync_runs`
+- sincroniza equipos y jugadores
+- reemplaza el snapshot persistido
+- limpia la cache en memoria
+
+Tablas creadas automáticamente:
+- `teams`
+- `players`
+- `team_players`
+- `sync_runs`
+
+Ejemplo de operación diaria con cron:
+```bash
+0 3 * * * cd /ruta/al/proyecto && npm run sync:gesdep >> /var/log/gesdep-sync.log 2>&1
+```
+
+## Cache TTL
+Variables disponibles:
+- `CACHE_TTL_TEAMS_SECONDS`
+- `CACHE_TTL_TEAMS_EXTENDED_SECONDS`
+- `CACHE_TTL_PLAYER_SECONDS`
+
+Valores por defecto:
+- `/teams`: `300`
+- `/teams/extended`: `1800`
+- `/players/:id`: `3600`
+
+## Por qué Knex
+Knex mantiene el stack simple y suficiente para:
+- queries controladas
+- upserts y reemplazos batch
+- migración futura a un modelo más complejo si hace falta
 
 ## Notes
-- Browser automation lives under `src/gesdep`. Replace placeholders with real flows.
-- Add migrations under `src/db/migrations` (configure in `src/db/knex.ts`).
-- Current `npm audit` findings require major-version upgrades for `fastify`, `vitest`, and `@typescript-eslint/*`; they are not fixed in this pass.
+- La automatización de Gesdep vive bajo `src/gesdep`
+- El esquema ahora se auto-inicializa al arrancar servidor o ejecutar el batch
+- Hoy el almacenamiento es snapshot completo, no CDC ni sincronización incremental
+- El siguiente paso recomendado es exponer estado de sincronización y programar el batch de forma supervisada

@@ -24,14 +24,14 @@ export const extendedTeamItemSchema = basicTeamItemSchema.extend({
 });
 
 const teamsMetaSchema = z.object({
-  source: z.literal('gesdep'),
+  source: z.enum(['gesdep', 'mysql']),
   count: z.number().int().nonnegative()
 });
 
 export const listTeamsResponseSchema = z.object({
   items: z.array(basicTeamItemSchema),
   meta: z.object({
-    source: z.literal('gesdep'),
+    source: z.enum(['gesdep', 'mysql']),
     count: z.number().int().nonnegative()
   })
 });
@@ -51,7 +51,7 @@ export const playerDetailSchema = z.object({
 export const getPlayerResponseSchema = z.object({
   item: playerDetailSchema,
   meta: z.object({
-    source: z.literal('gesdep')
+    source: z.enum(['gesdep', 'mysql'])
   })
 });
 

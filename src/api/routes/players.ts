@@ -2,13 +2,16 @@ import { FastifyInstance } from 'fastify';
 import { GesdepClient } from '../../gesdep/actions/gesdepClient.js';
 import { GetPlayerUseCase } from '../../application/getPlayerUseCase.js';
 import { GetPlayerResponse } from '../../domain/types.js';
+import { PlayerReadService } from '../../application/playerReadService.js';
 
 export interface RegisterPlayersRouteDeps {
-  useCase?: GetPlayerUseCase;
+  readService?: PlayerReadService;
 }
 
 export const registerPlayersRoute = (app: FastifyInstance, deps: RegisterPlayersRouteDeps = {}) => {
-  const useCase = deps.useCase ?? new GetPlayerUseCase({ navigator: new GesdepClient() });
+  const readService = deps.readService ?? new PlayerReadService({
+    onlineUseCase: new GetPlayerUseCase({ navigator: new GesdepClient() })
+  });
 
   app.get<{
     Params: { id: string };
@@ -39,7 +42,7 @@ export const registerPlayersRoute = (app: FastifyInstance, deps: RegisterPlayers
               type: 'object',
               required: ['source'],
               properties: {
-                source: { type: 'string', const: 'gesdep' }
+                source: { type: 'string', enum: ['gesdep', 'mysql'] }
               }
             }
           }
@@ -47,7 +50,7 @@ export const registerPlayersRoute = (app: FastifyInstance, deps: RegisterPlayers
       }
     }
   }, async (request, reply) => {
-    const payload = await useCase.execute(request.params.id);
+    const payload = await readService.getById(request.params.id);
     reply.send(payload);
   });
 };

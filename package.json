@@ -13,7 +13,8 @@
     "test:watch": "vitest watch",
     "lint": "eslint \"src/**/*.{ts,tsx}\" \"tests/**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "probe:login": "tsx src/scripts/probe-login.ts"
+    "probe:login": "tsx src/scripts/probe-login.ts",
+    "sync:gesdep": "tsx src/scripts/sync-gesdep.ts"
   },
   "dependencies": {
     "@fastify/cors": "^8.5.0",

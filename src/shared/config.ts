@@ -13,6 +13,9 @@ const envSchema = z.object({
     .transform((v) => v === 'true' || v === '1')
     .pipe(z.boolean()),
   GESDEP_DETAIL_CONCURRENCY: z.coerce.number().int().min(1).max(12).default(6),
+  CACHE_TTL_TEAMS_SECONDS: z.coerce.number().int().min(1).default(300),
+  CACHE_TTL_TEAMS_EXTENDED_SECONDS: z.coerce.number().int().min(1).default(1800),
+  CACHE_TTL_PLAYER_SECONDS: z.coerce.number().int().min(1).default(3600),
   GESDEP_USERNAME: z.string(),
   GESDEP_PASSWORD: z.string(),
   DATABASE_HOST: z.string().default('localhost'),
