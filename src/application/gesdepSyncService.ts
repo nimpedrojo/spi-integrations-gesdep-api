@@ -6,6 +6,15 @@ import { ensureDatabaseSchema } from '../db/schema.js';
 import { TeamItem } from '../domain/types.js';
 import { logger } from '../shared/logger.js';
 import { memoryCache } from '../shared/memoryCache.js';
+import { ExternalServiceError } from '../shared/errors.js';
+
+const normalizeComparableText = (value: string | null | undefined) =>
+  value
+    ?.normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase() ?? '';
 
 export interface GesdepSyncServiceDeps {
   teamsUseCase: ListTeamsUseCase;
@@ -35,10 +44,12 @@ export class GesdepSyncService {
       const teamsResponse = await this.deps.teamsUseCase.executeExtended();
       const teams = teamsResponse.items;
       const uniquePlayerIds = [...new Set(teams.flatMap((team) => team.players.map((player) => player.id)))];
+      const rosterPlayerById = new Map(teams.flatMap((team) => team.players.map((player) => [player.id, player] as const)));
 
       logger.info({ teams: teams.length, players: uniquePlayerIds.length }, 'Starting Gesdep batch sync');
 
       const playerDetails = await this.deps.playerUseCase.executeBatch(uniquePlayerIds);
+      this.ensurePlayerDetailsMatchRoster(playerDetails, rosterPlayerById);
       const playerDetailsById = new Map(playerDetails.map((player) => [player.id, player]));
       const syncedAt = new Date();
 
@@ -121,5 +132,43 @@ export class GesdepSyncService {
           synced_at: syncedAt
         }))
     );
+  }
+
+  private ensurePlayerDetailsMatchRoster(
+    playerDetails: Array<{ id: string; shortName: string | null; fullName: string | null }>,
+    rosterPlayerById: Map<string, { shortName: string; fullName: string }>
+  ) {
+    const mismatches = playerDetails.flatMap((player) => {
+      const rosterPlayer = rosterPlayerById.get(player.id);
+      if (!rosterPlayer) {
+        return [];
+      }
+
+      const expectedFullName = normalizeComparableText(rosterPlayer.fullName);
+      const actualFullName = normalizeComparableText(player.fullName);
+      const expectedShortName = normalizeComparableText(rosterPlayer.shortName);
+      const actualShortName = normalizeComparableText(player.shortName);
+
+      if ((expectedFullName && actualFullName && expectedFullName !== actualFullName) || (expectedShortName && actualShortName && expectedShortName !== actualShortName)) {
+        return [
+          {
+            id: player.id,
+            expectedFullName: rosterPlayer.fullName,
+            actualFullName: player.fullName,
+            expectedShortName: rosterPlayer.shortName,
+            actualShortName: player.shortName
+          }
+        ];
+      }
+
+      return [];
+    });
+
+    if (mismatches.length > 0) {
+      throw new ExternalServiceError('Fetched player details do not match the expected roster players', {
+        mismatchCount: mismatches.length,
+        sample: mismatches.slice(0, 5)
+      });
+    }
   }
 }

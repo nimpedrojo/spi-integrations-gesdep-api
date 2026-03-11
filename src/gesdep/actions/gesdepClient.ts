@@ -1,4 +1,4 @@
-import { BrowserContext, Page } from 'playwright';
+import { Browser, BrowserContext, Page } from 'playwright';
 import { createBrowser } from '../browser/browserFactory.js';
 import { selectors } from '../selectors/index.js';
 import { ExternalServiceError } from '../../shared/errors.js';
@@ -11,12 +11,16 @@ export interface LoginCredentials {
 }
 
 export class GesdepClient {
+  private browser?: Browser;
   private browserContext?: BrowserContext;
 
   async init() {
+    if (!this.browser) {
+      this.browser = await createBrowser();
+    }
+
     if (!this.browserContext) {
-      const browser = await createBrowser();
-      this.browserContext = await browser.newContext();
+      this.browserContext = await this.browser.newContext();
       logger.info('Browser context initialized for Gesdep');
     }
   }
@@ -30,7 +34,12 @@ export class GesdepClient {
 
   async login(credentials: LoginCredentials): Promise<Page> {
     await this.init();
-    const page = await this.browserContext!.newPage();
+
+    return this.loginInContext(this.browserContext!, credentials);
+  }
+
+  private async loginInContext(context: BrowserContext, credentials: LoginCredentials): Promise<Page> {
+    const page = await context.newPage();
     try {
       await page.goto(new URL(selectors.login.path, config.GESDEP_BASE_URL).toString(), {
         waitUntil: 'domcontentloaded'
@@ -118,7 +127,7 @@ export class GesdepClient {
       await page.goto(new URL(`${selectors.players.path}?idjug=${encodeURIComponent(playerId)}`, config.GESDEP_BASE_URL).toString(), {
         waitUntil: 'domcontentloaded'
       });
-      await page.waitForSelector(selectors.players.ready, {
+      await page.waitForSelector(selectors.players.card, {
         state: 'attached'
       });
       return await page.content();
@@ -135,45 +144,47 @@ export class GesdepClient {
       return {};
     }
 
-    const authPage = await this.openAuthenticatedPage();
+    await this.init();
     const results: Record<string, string> = {};
     const pendingPlayerIds = [...playerIds];
 
     const worker = async () => {
-      while (pendingPlayerIds.length > 0) {
-        const playerId = pendingPlayerIds.shift();
+      const context = await this.browser!.newContext();
+      const page = await this.loginInContext(context, {
+        username: config.GESDEP_USERNAME,
+        password: config.GESDEP_PASSWORD
+      });
 
-        if (!playerId) {
-          return;
-        }
+      try {
+        while (pendingPlayerIds.length > 0) {
+          const playerId = pendingPlayerIds.shift();
 
-        const page = await this.browserContext!.newPage();
+          if (!playerId) {
+            return;
+          }
 
-        try {
           await page.goto(new URL(`${selectors.players.path}?idjug=${encodeURIComponent(playerId)}`, config.GESDEP_BASE_URL).toString(), {
             waitUntil: 'domcontentloaded'
           });
-          await page.waitForSelector(selectors.players.ready, {
+          await page.waitForSelector(selectors.players.card, {
             state: 'attached'
           });
           results[playerId] = await page.content();
-        } catch (err) {
-          logger.error({ err, playerId }, 'Reading player detail HTML failed in batch mode');
-          throw new ExternalServiceError('Failed to read Gesdep player detail HTML');
-        } finally {
-          await page.close();
         }
+      } catch (err) {
+        logger.error({ err }, 'Reading player detail HTML failed in batch mode');
+        throw new ExternalServiceError('Failed to read Gesdep player detail HTML');
+      } finally {
+        await page.close();
+        await context.close();
       }
     };
 
-    try {
-      await Promise.all(
-        Array.from({ length: Math.min(config.GESDEP_DETAIL_CONCURRENCY, playerIds.length) }, async () => worker())
-      );
-      return results;
-    } finally {
-      await authPage.close();
-    }
+    await Promise.all(
+      Array.from({ length: Math.min(config.GESDEP_DETAIL_CONCURRENCY, playerIds.length) }, async () => worker())
+    );
+
+    return results;
   }
 
   async fetchTeamHtmlBatch(teamIds: string[]): Promise<Record<string, string>> {
