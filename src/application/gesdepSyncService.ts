@@ -112,16 +112,24 @@ export class GesdepSyncService {
 
         if (sanitizedPlayerDetails.length > 0) {
           await this.knex.transaction(async (trx) => {
-            await trx('players').del();
-            await trx('players').insert(
-              sanitizedPlayerDetails.map((player) => ({
-                id: player.id,
-                short_name: player.shortName,
-                full_name: player.fullName,
-                fields_json: JSON.stringify(player.fields),
-                synced_at: syncedAt
-              }))
-            );
+            await trx('players')
+              .insert(
+                sanitizedPlayerDetails.map((player) => ({
+                  id: player.id,
+                  short_name: player.shortName,
+                  full_name: player.fullName,
+                  fields_json: JSON.stringify(player.fields),
+                  synced_at: syncedAt
+                }))
+              )
+              .onConflict('id')
+              .merge({
+                short_name: trx.raw('VALUES(short_name)'),
+                full_name: trx.raw('VALUES(full_name)'),
+                fields_json: trx.raw('VALUES(fields_json)'),
+                synced_at: trx.raw('VALUES(synced_at)'),
+                updated_at: trx.fn.now()
+              });
           });
         }
       } catch (error) {

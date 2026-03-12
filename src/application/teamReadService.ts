@@ -49,7 +49,9 @@ export class TeamReadService {
   async listExtended(): Promise<ListTeamsExtendedResponse> {
     return this.cache.remember('teams:extended', config.CACHE_TTL_TEAMS_EXTENDED_SECONDS, async () => {
       const items = await this.repository.listExtended();
-      if (items.length > 0) {
+      const hasRosterData = items.some((team) => team.players.length > 0);
+
+      if (items.length > 0 && hasRosterData) {
         return listTeamsExtendedResponseSchema.parse({
           items,
           meta: {
