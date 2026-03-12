@@ -9,12 +9,14 @@ import { registerAuthRoute } from './routes/auth.js';
 import { AppError } from '../shared/errors.js';
 import { registerTeamsRoute, RegisterTeamsRouteDeps } from './routes/teams.js';
 import { registerPlayersRoute, RegisterPlayersRouteDeps } from './routes/players.js';
+import { registerTeamWorkStatsRoute, RegisterTeamWorkStatsRouteDeps } from './routes/teamWorkStats.js';
 import { ensureDatabaseSchema } from '../db/schema.js';
 import { authPlugin } from './auth.js';
 
 export interface BuildServerDeps {
   teamsRoute?: RegisterTeamsRouteDeps;
   playersRoute?: RegisterPlayersRouteDeps;
+  teamWorkStatsRoute?: RegisterTeamWorkStatsRouteDeps;
 }
 
 export const buildServer = (deps: BuildServerDeps = {}) => {
@@ -39,7 +41,8 @@ export const buildServer = (deps: BuildServerDeps = {}) => {
         { name: 'auth', description: 'Autenticacion de la API' },
         { name: 'health', description: 'Estado del servicio' },
         { name: 'teams', description: 'Equipos y roster' },
-        { name: 'players', description: 'Detalle de jugadores' }
+        { name: 'players', description: 'Detalle de jugadores' },
+        { name: 'stats', description: 'Estadisticas de trabajo por equipo' }
       ],
       components: {
         securitySchemes: {
@@ -63,6 +66,7 @@ export const buildServer = (deps: BuildServerDeps = {}) => {
   registerHealthRoute(app);
   registerTeamsRoute(app, deps.teamsRoute);
   registerPlayersRoute(app, deps.playersRoute);
+  registerTeamWorkStatsRoute(app, deps.teamWorkStatsRoute);
 
   app.setErrorHandler((err, _req, reply) => {
     const status = err instanceof AppError ? err.statusCode : 500;

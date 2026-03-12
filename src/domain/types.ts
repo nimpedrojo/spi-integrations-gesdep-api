@@ -5,6 +5,8 @@ export interface HealthStatus {
   timestamp: string;
 }
 
+const sourceSchema = z.enum(['gesdep', 'mysql']);
+
 export const teamPlayerSchema = z.object({
   id: z.string(),
   shortName: z.string(),
@@ -24,14 +26,14 @@ export const extendedTeamItemSchema = basicTeamItemSchema.extend({
 });
 
 const teamsMetaSchema = z.object({
-  source: z.enum(['gesdep', 'mysql']),
+  source: sourceSchema,
   count: z.number().int().nonnegative()
 });
 
 export const listTeamsResponseSchema = z.object({
   items: z.array(basicTeamItemSchema),
   meta: z.object({
-    source: z.enum(['gesdep', 'mysql']),
+    source: sourceSchema,
     count: z.number().int().nonnegative()
   })
 });
@@ -51,7 +53,34 @@ export const playerDetailSchema = z.object({
 export const getPlayerResponseSchema = z.object({
   item: playerDetailSchema,
   meta: z.object({
-    source: z.enum(['gesdep', 'mysql'])
+    source: sourceSchema
+  })
+});
+
+export const teamWorkMethodStatSchema = z.object({
+  method: z.string(),
+  minutes: z.number().int().nonnegative()
+});
+
+export const teamWorkExerciseStatSchema = z.object({
+  rank: z.number().int().positive(),
+  exerciseId: z.string().nullable(),
+  title: z.string(),
+  minutes: z.number().int().nonnegative(),
+  imageUrl: z.string().nullable()
+});
+
+export const teamWorkStatsResponseSchema = z.object({
+  item: z.object({
+    teamId: z.string(),
+    teamName: z.string().nullable(),
+    from: z.string(),
+    to: z.string(),
+    methods: z.array(teamWorkMethodStatSchema),
+    topExercises: z.array(teamWorkExerciseStatSchema)
+  }),
+  meta: z.object({
+    source: sourceSchema
   })
 });
 
@@ -62,3 +91,6 @@ export type ListTeamsExtendedResponse = z.infer<typeof listTeamsExtendedResponse
 export type TeamPlayer = z.infer<typeof teamPlayerSchema>;
 export type PlayerDetail = z.infer<typeof playerDetailSchema>;
 export type GetPlayerResponse = z.infer<typeof getPlayerResponseSchema>;
+export type TeamWorkMethodStat = z.infer<typeof teamWorkMethodStatSchema>;
+export type TeamWorkExerciseStat = z.infer<typeof teamWorkExerciseStatSchema>;
+export type TeamWorkStatsResponse = z.infer<typeof teamWorkStatsResponseSchema>;

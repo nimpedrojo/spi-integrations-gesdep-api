@@ -6,6 +6,8 @@ import { ensureDatabaseSchema } from '../db/schema.js';
 import { TeamItem } from '../domain/types.js';
 import { logger } from '../shared/logger.js';
 import { memoryCache } from '../shared/memoryCache.js';
+import { GetTeamWorkStatsUseCase } from './getTeamWorkStatsUseCase.js';
+import { TeamWorkStatsRepository } from '../db/repositories/teamWorkStatsRepository.js';
 
 const normalizeComparableText = (value: string | null | undefined) =>
   value
@@ -27,14 +29,18 @@ const toComparableNameTokens = (value: string | null | undefined) =>
 export interface GesdepSyncServiceDeps {
   teamsUseCase: ListTeamsUseCase;
   playerUseCase: GetPlayerUseCase;
+  teamWorkStatsUseCase?: GetTeamWorkStatsUseCase;
+  teamWorkStatsRepository?: TeamWorkStatsRepository;
   knex?: Knex;
 }
 
 export class GesdepSyncService {
   private readonly knex: Knex;
+  private readonly teamWorkStatsRepository: TeamWorkStatsRepository;
 
   constructor(private readonly deps: GesdepSyncServiceDeps) {
     this.knex = deps.knex ?? db;
+    this.teamWorkStatsRepository = deps.teamWorkStatsRepository ?? new TeamWorkStatsRepository(this.knex);
   }
 
   async syncAll() {
@@ -104,6 +110,7 @@ export class GesdepSyncService {
       });
 
       let detailedPlayers = 0;
+      let dailyTeamWorkStats = 0;
 
       try {
         const playerDetails = await this.deps.playerUseCase.executeBatch(uniquePlayerIds);
@@ -139,6 +146,26 @@ export class GesdepSyncService {
         );
       }
 
+      if (this.deps.teamWorkStatsUseCase) {
+        const targetDate = this.getPreviousDayIso();
+
+        for (const team of teams) {
+          try {
+            const stats = await this.deps.teamWorkStatsUseCase.execute(team.id, targetDate, targetDate);
+            await this.teamWorkStatsRepository.replaceDaily(
+              team.id,
+              targetDate,
+              stats.item.methods,
+              stats.item.topExercises,
+              syncedAt
+            );
+            dailyTeamWorkStats += 1;
+          } catch (error) {
+            logger.warn({ err: error, teamId: team.id, targetDate }, 'Daily team work stats sync failed for team');
+          }
+        }
+      }
+
       await this.knex('sync_runs')
         .where({ id: runId })
         .update({
@@ -147,7 +174,8 @@ export class GesdepSyncService {
           details_json: JSON.stringify({
             teams: teams.length,
             players: basicPlayers.length,
-            detailedPlayers
+            detailedPlayers,
+            dailyTeamWorkStats
           })
         });
 
@@ -155,7 +183,8 @@ export class GesdepSyncService {
 
       return {
         teams: teams.length,
-        players: basicPlayers.length
+        players: basicPlayers.length,
+        dailyTeamWorkStats
       };
     } catch (error) {
       await this.knex('sync_runs')
@@ -183,6 +212,12 @@ export class GesdepSyncService {
           synced_at: syncedAt
         }))
     );
+  }
+
+  private getPreviousDayIso() {
+    const date = new Date();
+    date.setUTCDate(date.getUTCDate() - 1);
+    return date.toISOString().slice(0, 10);
   }
 
   private sanitizePlayerDetailsAgainstRoster(

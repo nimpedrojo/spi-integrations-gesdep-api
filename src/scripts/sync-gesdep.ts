@@ -3,12 +3,14 @@ import { ListTeamsUseCase } from '../application/listTeamsUseCase.js';
 import { GetPlayerUseCase } from '../application/getPlayerUseCase.js';
 import { GesdepSyncService } from '../application/gesdepSyncService.js';
 import { logger } from '../shared/logger.js';
+import { GetTeamWorkStatsUseCase } from '../application/getTeamWorkStatsUseCase.js';
 
 const main = async () => {
   const client = new GesdepClient();
   const syncService = new GesdepSyncService({
     teamsUseCase: new ListTeamsUseCase({ navigator: client }),
-    playerUseCase: new GetPlayerUseCase({ navigator: client })
+    playerUseCase: new GetPlayerUseCase({ navigator: client }),
+    teamWorkStatsUseCase: new GetTeamWorkStatsUseCase({ navigator: client })
   });
 
   const result = await syncService.syncAll();

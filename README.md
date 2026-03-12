@@ -7,6 +7,7 @@ Arquitectura actual:
 - Delante de MySQL hay una cache TTL en memoria
 - Si la BD no tiene datos, la API puede hacer fallback al scraping online de Gesdep
 - Un proceso batch sincroniza equipos y jugadores desde Gesdep hacia MySQL
+- Para estadisticas de trabajo por equipo, el batch puede materializar un snapshot diario por equipo para reconstruir rangos desde MySQL
 
 Objetivo operativo:
 - minimizar navegación Playwright en caliente
@@ -57,8 +58,9 @@ Flujo de sincronización:
 2. Descarga el listado extendido de equipos
 3. Descarga la ficha de cada jugador detectado
 4. Reemplaza el snapshot local en MySQL
-5. Invalida la cache en memoria
-6. Tras añadir los jugadores desde Gesdep, sus datos se pueden actualizar desde la API consultando `GET /players/:externalid`
+5. Descarga las estadisticas de trabajo del dia anterior para cada equipo y las guarda con granularidad diaria
+6. Invalida la cache en memoria
+7. Tras añadir los jugadores desde Gesdep, sus datos se pueden actualizar desde la API consultando `GET /players/:externalid`
 
 ## Desarrollo
 ```bash
@@ -105,6 +107,7 @@ GET /health
 POST /auth/token
 GET /teams
 GET /teams/extended
+GET /teams/:teamId/work-stats?from=YYYY-MM-DD&to=YYYY-MM-DD
 GET /players/:id
 GET /docs
 GET /docs/json
@@ -114,6 +117,7 @@ Autenticacion:
 - `POST /auth/token` devuelve un Bearer token JWT
 - `GET /teams`
 - `GET /teams/extended`
+- `GET /teams/:teamId/work-stats?from=YYYY-MM-DD&to=YYYY-MM-DD`
 - `GET /players/:id`
 
 Ejemplo:
@@ -126,6 +130,12 @@ curl -X POST http://localhost:3000/auth/token \
 Luego usa el token:
 ```bash
 curl http://localhost:3000/teams \
+  -H "authorization: Bearer TU_TOKEN"
+```
+
+Ejemplo de estadisticas de trabajo:
+```bash
+curl "http://localhost:3000/teams/636/work-stats?from=2026-03-01&to=2026-03-07" \
   -H "authorization: Bearer TU_TOKEN"
 ```
 
@@ -142,6 +152,11 @@ Semántica actual:
   - lectura desde cache o MySQL
   - fallback online si el jugador no existe en BD
   - permite refrescar los datos de un jugador ya sincronizado usando su identificador externo de Gesdep (`externalid`)
+- `/teams/:teamId/work-stats`:
+  - requiere `from` y `to` en formato `YYYY-MM-DD`
+  - intenta responder desde cache y MySQL si el rango completo ya fue materializado por el batch diario
+  - si falta algun dia del rango, hace fallback online a Gesdep
+  - devuelve agregados por metodo de entrenamiento y el Top 20 de ejercicios
 
 El campo `meta.source` puede ser:
 - `mysql`
@@ -171,6 +186,7 @@ El proceso:
 - inicializa el esquema si no existe
 - registra una fila en `sync_runs`
 - sincroniza equipos y jugadores
+- sincroniza las estadisticas de trabajo del dia anterior por equipo
 - reemplaza el snapshot persistido
 - limpia la cache en memoria
 
@@ -178,7 +194,29 @@ Tablas creadas automáticamente:
 - `teams`
 - `players`
 - `team_players`
+- `team_work_daily_sync`
+- `team_work_method_daily`
+- `team_work_exercise_daily`
 - `sync_runs`
+
+## Flujo de estadisticas de trabajo
+Lectura de `GET /teams/:teamId/work-stats`:
+1. La API valida `teamId`, `from` y `to`
+2. Busca en cache de memoria para la clave `team-work-stats:{teamId}:{from}:{to}`
+3. Comprueba en MySQL si existe cobertura diaria completa para todas las fechas del rango
+4. Si existe cobertura completa, agrega desde `team_work_method_daily` y `team_work_exercise_daily`
+5. Si falta cobertura en algun dia, consulta online Gesdep en `frmejerestadisticas.aspx`
+6. La respuesta informa el origen en `meta.source`
+
+Flujo batch diario para estas estadisticas:
+1. Al ejecutar `npm run sync:gesdep`, despues de sincronizar equipos y jugadores
+2. Se consulta Gesdep para cada equipo con el rango de un solo dia correspondiente al dia anterior
+3. Se guardan los minutos por metodo en `team_work_method_daily`
+4. Se guarda el Top 20 de ejercicios del dia en `team_work_exercise_daily`
+5. Se marca cobertura diaria en `team_work_daily_sync`
+
+Limitacion relevante:
+- Gesdep devuelve agregados por rango. Para que MySQL pueda responder rangos arbitrarios sin volver a Gesdep, el batch guarda datos diarios por equipo. Si falta un dia intermedio, la API cae a lectura online.
 
 Ejemplo de operación diaria con cron:
 ```bash

@@ -52,4 +52,46 @@ export const ensureDatabaseSchema = async () => {
       table.timestamps(true, true);
     });
   }
+
+  const hasTeamWorkDailySync = await db.schema.hasTable('team_work_daily_sync');
+  if (!hasTeamWorkDailySync) {
+    await db.schema.createTable('team_work_daily_sync', (table) => {
+      table.string('team_id', 64).notNullable();
+      table.date('work_date').notNullable();
+      table.timestamp('synced_at').notNullable();
+      table.primary(['team_id', 'work_date']);
+      table.foreign('team_id').references('teams.id').onDelete('CASCADE');
+      table.index(['work_date']);
+    });
+  }
+
+  const hasTeamWorkMethodDaily = await db.schema.hasTable('team_work_method_daily');
+  if (!hasTeamWorkMethodDaily) {
+    await db.schema.createTable('team_work_method_daily', (table) => {
+      table.string('team_id', 64).notNullable();
+      table.date('work_date').notNullable();
+      table.string('method_name', 255).notNullable();
+      table.integer('minutes').notNullable().defaultTo(0);
+      table.timestamp('synced_at').notNullable();
+      table.primary(['team_id', 'work_date', 'method_name']);
+      table.foreign('team_id').references('teams.id').onDelete('CASCADE');
+      table.index(['team_id', 'work_date']);
+    });
+  }
+
+  const hasTeamWorkExerciseDaily = await db.schema.hasTable('team_work_exercise_daily');
+  if (!hasTeamWorkExerciseDaily) {
+    await db.schema.createTable('team_work_exercise_daily', (table) => {
+      table.string('team_id', 64).notNullable();
+      table.date('work_date').notNullable();
+      table.string('exercise_id', 64).nullable();
+      table.string('title', 255).notNullable();
+      table.integer('minutes').notNullable().defaultTo(0);
+      table.string('image_url', 1024).nullable();
+      table.timestamp('synced_at').notNullable();
+      table.primary(['team_id', 'work_date', 'title']);
+      table.foreign('team_id').references('teams.id').onDelete('CASCADE');
+      table.index(['team_id', 'work_date']);
+    });
+  }
 };

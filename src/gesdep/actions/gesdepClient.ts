@@ -18,6 +18,8 @@ export const buildPlayerDetailUrl = (playerId: string): URL => {
   return detailUrl;
 };
 
+export const buildTeamWorkStatsUrl = (): URL => new URL(selectors.workStats.path, config.GESDEP_BASE_URL);
+
 export class GesdepClient {
   private browser?: Browser;
   private browserContext?: BrowserContext;
@@ -197,6 +199,40 @@ export class GesdepClient {
     );
 
     return results;
+  }
+
+  async fetchTeamWorkStatsHtml(teamId: string, from: string, to: string): Promise<string> {
+    const page = await this.openAuthenticatedPage();
+
+    try {
+      await page.goto(buildTeamWorkStatsUrl().toString(), {
+        waitUntil: 'domcontentloaded'
+      });
+      await page.waitForSelector(selectors.workStats.ready, {
+        state: 'attached'
+      });
+      await page.selectOption(selectors.workStats.team, teamId);
+      await page.fill(selectors.workStats.from, from);
+      await page.fill(selectors.workStats.to, to);
+
+      await Promise.allSettled([
+        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10000 }),
+        page.click(selectors.workStats.search)
+      ]);
+
+      await page.waitForSelector(selectors.workStats.chart, {
+        state: 'attached'
+      });
+      await page.waitForSelector(selectors.workStats.top20, {
+        state: 'attached'
+      });
+      return await page.content();
+    } catch (err) {
+      logger.error({ err, teamId, from, to }, 'Reading team work stats HTML failed');
+      throw new ExternalServiceError('Failed to read Gesdep team work stats HTML');
+    } finally {
+      await page.close();
+    }
   }
 
   async fetchTeamHtmlBatch(teamIds: string[]): Promise<Record<string, string>> {

@@ -32,5 +32,16 @@ export const selectors = {
     otherSportData: '#ctl00_ContentPlaceHolder1_lblDeporOtrosDatos',
     observations: '#ctl00_ContentPlaceHolder1_txtObservaciones',
     positions: '#ctl00_ContentPlaceHolder1_lblPosiciones'
+  },
+  workStats: {
+    path: '/v3/forms/technical/frmejerestadisticas.aspx',
+    ready: '#ctl00_ContentPlaceHolder1_lblEstTraRea',
+    team: '#ctl00_ContentPlaceHolder1_cmbEquipos',
+    from: '#ctl00_ContentPlaceHolder1_txtDesde',
+    to: '#ctl00_ContentPlaceHolder1_txtHasta',
+    hideGesdepMethods: '#ctl00_ContentPlaceHolder1_chkOculta',
+    search: '#ctl00_ContentPlaceHolder1_btnBusca',
+    chart: '#graf3',
+    top20: '#ctl00_ContentPlaceHolder1_lblTop20'
   }
 };
