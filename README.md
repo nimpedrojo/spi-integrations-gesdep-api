@@ -58,6 +58,7 @@ Flujo de sincronización:
 3. Descarga la ficha de cada jugador detectado
 4. Reemplaza el snapshot local en MySQL
 5. Invalida la cache en memoria
+6. Tras añadir los jugadores desde Gesdep, sus datos se pueden actualizar desde la API consultando `GET /players/:externalid`
 
 ## Desarrollo
 ```bash
@@ -140,6 +141,7 @@ Semántica actual:
 - `/players/:id`:
   - lectura desde cache o MySQL
   - fallback online si el jugador no existe en BD
+  - permite refrescar los datos de un jugador ya sincronizado usando su identificador externo de Gesdep (`externalid`)
 
 El campo `meta.source` puede ser:
 - `mysql`

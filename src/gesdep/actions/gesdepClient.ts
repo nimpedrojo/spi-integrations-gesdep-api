@@ -10,6 +10,14 @@ export interface LoginCredentials {
   password: string;
 }
 
+export const buildPlayerDetailUrl = (playerId: string): URL => {
+  const detailUrl = new URL(selectors.players.path, config.GESDEP_BASE_URL);
+  // Gesdep links to player detail pages with `idjug`; using a different param can
+  // resolve to the wrong page while still returning valid HTML.
+  detailUrl.searchParams.set('idjug', playerId);
+  return detailUrl;
+};
+
 export class GesdepClient {
   private browser?: Browser;
   private browserContext?: BrowserContext;
@@ -59,9 +67,7 @@ export class GesdepClient {
   }
 
   private async resolvePlayerDetailUrl(page: Page, playerId: string): Promise<string> {
-    const detailUrl = new URL(selectors.players.path, config.GESDEP_BASE_URL);
-    detailUrl.searchParams.set('idj', playerId);
-    return detailUrl.toString();
+    return buildPlayerDetailUrl(playerId).toString();
   }
 
   async fetchHtml(url: string): Promise<string> {
