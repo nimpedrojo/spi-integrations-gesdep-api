@@ -211,7 +211,7 @@ Tablas creadas automáticamente:
 - `team_work_daily_sync`
 - `team_work_method_daily`
 - `team_work_exercise_daily`
-- `team_matches`
+- `team_match_stat_snapshots`
 - `sync_runs`
 
 ## Flujo de estadisticas de trabajo
@@ -237,14 +237,204 @@ Limitacion relevante:
 Lectura de `GET /teams/:teamId/matches/stats`:
 1. La API valida `teamId` y aplica filtros opcionales `competition` y `result`
 2. Busca en cache de memoria para la clave `team-match-stats:{teamId}:{competition}:{result}`
-3. Si existe snapshot local en `team_matches`, filtra y agrega desde MySQL
+3. Si existe snapshot local en `team_match_stat_snapshots`, responde desde MySQL
 4. Si no existe snapshot local, consulta online Gesdep en `frmpartidos.aspx`
 5. La respuesta informa el origen en `meta.source`
 
 Flujo batch diario para partidos:
-1. Al ejecutar `npm run sync:gesdep`, por cada equipo se consulta `frmpartidos.aspx` sin filtros
-2. Se guarda el snapshot completo de partidos de la temporada actual en `team_matches`
+1. Al ejecutar `npm run sync:gesdep`, por cada equipo se consulta `frmpartidos.aspx`
+2. Se guardan snapshots agregados por combinación `competition/result` en `team_match_stat_snapshots`
 3. Los filtros por competición y resultado se resuelven después desde MySQL sin volver a Gesdep
+
+## Despliegue en producción
+### Suposiciones
+- Host Linux con `systemd`
+- Node.js 18+ o 20+
+- MySQL 8+
+- Nginx o proxy equivalente delante de la aplicación
+- Credenciales válidas de Gesdep
+
+### 1. Crear usuario y directorios
+```bash
+sudo useradd --system --create-home --shell /usr/sbin/nologin gesdep
+sudo mkdir -p /var/www/gesdep-middleware
+sudo chown -R gesdep:gesdep /var/www/gesdep-middleware
+```
+
+### 2. Copiar el código y preparar variables
+Despliega el proyecto en `/var/www/gesdep-middleware` y crea el fichero `.env` con valores reales.
+
+Ejemplo mínimo:
+```dotenv
+NODE_ENV=production
+PORT=3000
+LOG_LEVEL=info
+
+API_AUTH_USERNAME=admin
+API_AUTH_PASSWORD=una-password-fuerte
+API_JWT_SECRET=un-secreto-largo-y-unico
+API_JWT_EXPIRES_IN=1d
+
+GESDEP_BASE_URL=https://www.gesdep.net
+GESDEP_HEADLESS=true
+GESDEP_DETAIL_CONCURRENCY=4
+GESDEP_USERNAME=usuario_gesdep
+GESDEP_PASSWORD=password_gesdep
+
+DATABASE_HOST=127.0.0.1
+DATABASE_PORT=3306
+DATABASE_USER=gesdep_app
+DATABASE_PASSWORD=password_mysql
+DATABASE_NAME=gesdep
+
+CACHE_TTL_TEAMS_SECONDS=300
+CACHE_TTL_TEAMS_EXTENDED_SECONDS=1800
+CACHE_TTL_PLAYER_SECONDS=3600
+```
+
+Recomendaciones:
+- no uses los valores por defecto de `API_AUTH_*` ni `API_JWT_SECRET`
+- reduce `GESDEP_DETAIL_CONCURRENCY` si el servidor tiene pocos recursos o Gesdep empieza a responder lento
+- mantén `GESDEP_HEADLESS=true` en producción
+
+### 3. Instalar dependencias y compilar
+```bash
+cd /var/www/gesdep-middleware
+npm ci
+npm run install:browsers
+npm run build
+```
+
+Si el servidor no tiene las dependencias del navegador, instala también librerías del sistema requeridas por Chromium de Playwright.
+
+### 4. Preparar MySQL
+Ejemplo de creación de base de datos y usuario:
+```sql
+CREATE DATABASE gesdep CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'gesdep_app'@'127.0.0.1' IDENTIFIED BY 'password_mysql';
+GRANT ALL PRIVILEGES ON gesdep.* TO 'gesdep_app'@'127.0.0.1';
+FLUSH PRIVILEGES;
+```
+
+No hace falta ejecutar migraciones manuales:
+- el esquema se auto-inicializa al arrancar la API
+- el esquema también se auto-inicializa al ejecutar el batch
+
+### 5. Levantar la API con systemd
+Crea `/etc/systemd/system/gesdep-middleware.service`:
+
+```ini
+[Unit]
+Description=Gesdep Middleware API
+After=network.target mysql.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=gesdep
+Group=gesdep
+WorkingDirectory=/var/www/gesdep-middleware
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /var/www/gesdep-middleware/dist/src/api/server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Activación:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now gesdep-middleware
+sudo systemctl status gesdep-middleware
+```
+
+Logs:
+```bash
+journalctl -u gesdep-middleware -f
+```
+
+### 6. Programar el batch diario
+Opción recomendada con `cron` del sistema para el usuario `gesdep`:
+```bash
+sudo crontab -u gesdep -e
+```
+
+Ejemplo:
+```cron
+0 3 * * * cd /var/www/gesdep-middleware && /usr/bin/npm run sync:gesdep >> /var/log/gesdep-sync.log 2>&1
+```
+
+Si prefieres `systemd`, crea un `service` y un `timer` dedicados para `sync:gesdep`.
+
+### 7. Publicar detrás de Nginx
+Ejemplo simple:
+
+```nginx
+server {
+    listen 80;
+    server_name api.tu-dominio.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Después añade TLS con Let's Encrypt o tu terminación SSL habitual.
+
+### 8. Verificación post-despliegue
+Comprobar salud:
+```bash
+curl http://127.0.0.1:3000/health
+```
+
+Pedir token:
+```bash
+curl -X POST http://127.0.0.1:3000/auth/token \
+  -H 'content-type: application/json' \
+  -d '{"username":"admin","password":"tu-password"}'
+```
+
+Comprobar Swagger:
+```bash
+curl http://127.0.0.1:3000/docs/json
+```
+
+Lanzar una sincronización manual:
+```bash
+cd /var/www/gesdep-middleware
+npm run sync:gesdep
+```
+
+### 9. Actualización de versión
+Flujo recomendado:
+```bash
+cd /var/www/gesdep-middleware
+git pull
+npm ci
+npm run build
+sudo systemctl restart gesdep-middleware
+```
+
+Si hay cambios relevantes en scraping o batch:
+```bash
+npm run sync:gesdep
+```
+
+### 10. Checklist operativo
+- la API responde en `/health`
+- `/docs` carga y muestra endpoints
+- `npm run sync:gesdep` termina sin errores
+- `journalctl -u gesdep-middleware -f` no muestra reinicios en bucle
+- la base de datos contiene `sync_runs` y snapshots recientes
+- el cron o timer diario está activo
 
 Ejemplo de operación diaria con cron:
 ```bash

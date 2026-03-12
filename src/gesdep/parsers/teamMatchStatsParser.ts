@@ -61,6 +61,22 @@ const summarizeMatches = (matches: TeamMatch[]) => {
   return { total, local: home, visitante: away };
 };
 
+const applyFilters = (
+  matches: TeamMatch[],
+  competition: MatchCompetition,
+  result: MatchResultFilter
+) => matches.filter((match) => {
+  if (competition !== 'all' && match.competition !== competition) {
+    return false;
+  }
+
+  if (result !== 'all' && match.result !== result) {
+    return false;
+  }
+
+  return true;
+});
+
 const parseSummaryValues = (html: string) => {
   const $ = load(html);
   const values = $('#ctl00_ContentPlaceHolder1_lblEstadisticas td[bgcolor=\"White\"], #ctl00_ContentPlaceHolder1_lblEstadisticas td[bgcolor=\"white\"]')
@@ -98,7 +114,7 @@ const extractMatchIdFromOnClick = (value?: string | null) => {
 };
 
 export class TeamMatchStatsParser {
-  parse(html: string): TeamMatchStatsResponse['item'] {
+  private parseMatches(html: string) {
     const $ = load(html);
     const teamId = $('#ctl00_ContentPlaceHolder1_cmbEquipos').val()?.toString() ?? null;
     const teamName = normalizeText($('#ctl00_ContentPlaceHolder1_cmbEquipos option:selected').text()) || null;
@@ -147,21 +163,61 @@ export class TeamMatchStatsParser {
       });
     });
 
-    const stats = parseSummaryValues(html) ?? summarizeMatches(matches);
+    return {
+      teamId,
+      teamName,
+      competitionSelected,
+      resultSelected,
+      matches
+    };
+  }
+
+  parse(html: string): TeamMatchStatsResponse['item'] {
+    const parsed = this.parseMatches(html);
+    const stats = parseSummaryValues(html) ?? summarizeMatches(parsed.matches);
+
+    return teamMatchStatsResponseSchema.shape.item.parse({
+      teamId: parsed.teamId,
+      teamName: parsed.teamName,
+      filters: {
+        competition:
+          parsed.competitionSelected === '1' ? 'league'
+            : parsed.competitionSelected === '2' ? 'cup'
+              : parsed.competitionSelected === '3' ? 'friendly'
+                : parsed.competitionSelected === '4' ? 'tournament'
+                  : 'all',
+        result: parsed.resultSelected
+      },
+      stats
+    });
+  }
+
+  parseWithMatches(html: string) {
+    const parsed = this.parseMatches(html);
+
+    return {
+      item: this.parse(html),
+      matches: parsed.matches
+    };
+  }
+
+  buildStatsFromMatches(
+    teamId: string,
+    teamName: string | null,
+    matches: TeamMatch[],
+    competition: MatchCompetition,
+    result: MatchResultFilter
+  ): TeamMatchStatsResponse['item'] {
+    const filteredMatches = applyFilters(matches, competition, result);
 
     return teamMatchStatsResponseSchema.shape.item.parse({
       teamId,
       teamName,
       filters: {
-        competition:
-          competitionSelected === '1' ? 'league'
-            : competitionSelected === '2' ? 'cup'
-              : competitionSelected === '3' ? 'friendly'
-                : competitionSelected === '4' ? 'tournament'
-                  : 'all',
-        result: resultSelected
+        competition,
+        result
       },
-      stats
+      stats: summarizeMatches(filteredMatches)
     });
   }
 }

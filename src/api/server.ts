@@ -65,6 +65,23 @@ export const buildServer = (deps: BuildServerDeps = {}) => {
       docExpansion: 'list',
       deepLinking: true,
       persistAuthorization: true
+    },
+    transformSpecificationClone: true,
+    transformSpecification: (swaggerObject: any, request: any) => {
+      const protocol = request.headers['x-forwarded-proto']?.toString() ?? request.protocol;
+      const host = request.headers['x-forwarded-host']?.toString() ?? request.headers.host;
+
+      return {
+        ...swaggerObject,
+        servers: host
+          ? [
+              {
+                url: `${protocol}://${host}`,
+                description: 'Current environment'
+              }
+            ]
+          : swaggerObject.servers
+      };
     }
   });
 

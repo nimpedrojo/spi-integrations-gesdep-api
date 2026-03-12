@@ -1,6 +1,7 @@
 import {
   MatchCompetition,
   MatchResultFilter,
+  TeamMatch,
   TeamMatchStatsResponse,
   teamMatchStatsResponseSchema
 } from '../domain/types.js';
@@ -52,6 +53,39 @@ export class GetTeamMatchStatsUseCase {
           source: 'gesdep'
         }
       });
+    } catch (error) {
+      const snapshotPath = await saveHtmlSnapshot(html, 'team-match-stats-parse-failed');
+      if (error instanceof Error) {
+        error.message = `${error.message}. HTML snapshot saved at ${snapshotPath}`;
+      }
+      throw error;
+    }
+  }
+
+  async executeAllSnapshots(
+    teamId: string,
+    teamName?: string
+  ): Promise<Array<{ competition: MatchCompetition; result: MatchResultFilter; item: TeamMatchStatsResponse['item'] }>> {
+    const html = await this.deps.navigator.fetchTeamMatchStatsHtml(teamId, 'all', 'all', teamName);
+
+    try {
+      const parsed = this.parser.parseWithMatches(html);
+      const competitions: MatchCompetition[] = ['all', 'league', 'cup', 'friendly', 'tournament'];
+      const results: MatchResultFilter[] = ['all', 'won', 'drawn', 'lost'];
+
+      return competitions.flatMap((competition) =>
+        results.map((result) => ({
+          competition,
+          result,
+          item: this.parser.buildStatsFromMatches(
+            teamId,
+            parsed.item.teamName ?? teamName ?? null,
+            parsed.matches as TeamMatch[],
+            competition,
+            result
+          )
+        }))
+      );
     } catch (error) {
       const snapshotPath = await saveHtmlSnapshot(html, 'team-match-stats-parse-failed');
       if (error instanceof Error) {
