@@ -2,6 +2,7 @@ import {
   ListTeamsExtendedResponse,
   ListTeamsResponse,
   TeamItem,
+  TeamPlayer,
   listTeamsExtendedResponseSchema,
   listTeamsResponseSchema
 } from '../domain/types.js';
@@ -18,6 +19,14 @@ export interface TeamsNavigator {
 export interface ListTeamsUseCaseDeps {
   navigator: TeamsNavigator;
   parser?: TeamsParser;
+}
+
+export interface TeamPlayerWithReference extends TeamPlayer {
+  detailPath: string | null;
+}
+
+export interface TeamItemWithPlayerReferences extends Omit<TeamItem, 'players'> {
+  players: TeamPlayerWithReference[];
 }
 
 export class ListTeamsUseCase {
@@ -50,6 +59,25 @@ export class ListTeamsUseCase {
   }
 
   async executeExtended(): Promise<ListTeamsExtendedResponse> {
+    const items = await this.executeExtendedWithPlayerReferences();
+
+    return listTeamsExtendedResponseSchema.parse({
+      items: items.map((item) => ({
+        ...item,
+        players: item.players.map((player) => ({
+          id: player.id,
+          shortName: player.shortName,
+          fullName: player.fullName
+        }))
+      })),
+      meta: {
+        source: 'gesdep',
+        count: items.length
+      }
+    });
+  }
+
+  async executeExtendedWithPlayerReferences(): Promise<TeamItemWithPlayerReferences[]> {
     const html = await this.deps.navigator.fetchTeamsHtml();
 
     try {
@@ -58,7 +86,7 @@ export class ListTeamsUseCase {
         ? await this.deps.navigator.fetchTeamHtmlBatch(items.map((item) => item.id))
         : Object.fromEntries(await Promise.all(items.map(async (item) => [item.id, await this.deps.navigator.fetchTeamHtml(item.id)])));
 
-      const enrichedItems: TeamItem[] = items.map((item) => ({
+      const enrichedItems: TeamItemWithPlayerReferences[] = items.map((item) => ({
         ...item,
         players: []
       }));
@@ -70,18 +98,12 @@ export class ListTeamsUseCase {
           continue;
         }
 
-        const detail = this.parser.parseTeamDetails(teamHtml);
+        const detail = this.parser.parseTeamDetailsWithReferences(teamHtml);
         item.category = detail.category;
         item.players = detail.players;
       }
 
-      return listTeamsExtendedResponseSchema.parse({
-        items: enrichedItems,
-        meta: {
-          source: 'gesdep',
-          count: enrichedItems.length
-        }
-      });
+      return enrichedItems;
     } catch (error) {
       if (error instanceof ParsingError) {
         const snapshotPath = await saveHtmlSnapshot(html, 'teams-parse-failed');

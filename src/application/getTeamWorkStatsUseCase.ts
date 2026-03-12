@@ -3,7 +3,7 @@ import { TeamWorkStatsParser } from '../gesdep/parsers/teamWorkStatsParser.js';
 import { saveHtmlSnapshot } from '../gesdep/utils/artifacts.js';
 
 export interface TeamWorkStatsNavigator {
-  fetchTeamWorkStatsHtml(teamId: string, from: string, to: string): Promise<string>;
+  fetchTeamWorkStatsHtml(teamId: string, from: string, to: string, teamName?: string): Promise<string>;
 }
 
 export interface GetTeamWorkStatsUseCaseDeps {
@@ -18,8 +18,8 @@ export class GetTeamWorkStatsUseCase {
     this.parser = deps.parser ?? new TeamWorkStatsParser();
   }
 
-  async execute(teamId: string, from: string, to: string): Promise<TeamWorkStatsResponse> {
-    const html = await this.deps.navigator.fetchTeamWorkStatsHtml(teamId, from, to);
+  async execute(teamId: string, from: string, to: string, teamName?: string): Promise<TeamWorkStatsResponse> {
+    const html = await this.deps.navigator.fetchTeamWorkStatsHtml(teamId, from, to, teamName);
 
     try {
       return teamWorkStatsResponseSchema.parse({

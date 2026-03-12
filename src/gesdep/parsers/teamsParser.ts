@@ -27,6 +27,15 @@ const extractPlayerIdFromOnClick = (value?: string | null) => {
   return match?.[1] ?? null;
 };
 
+const extractPlayerDetailPathFromOnClick = (value?: string | null) => {
+  if (!value) {
+    return null;
+  }
+
+  const match = value.match(/document\.location\s*=\s*"([^"]+)"/i);
+  return match?.[1] ?? null;
+};
+
 const extractSeason = (value: string | null) => {
   if (!value) {
     return null;
@@ -99,6 +108,22 @@ export class TeamsParser {
   }
 
   parseTeamDetails(html: string): Pick<TeamItem, 'category' | 'players'> {
+    const detail = this.parseTeamDetailsWithReferences(html);
+
+    return {
+      category: detail.category,
+      players: detail.players.map((player) => ({
+        id: player.id,
+        shortName: player.shortName,
+        fullName: player.fullName
+      }))
+    };
+  }
+
+  parseTeamDetailsWithReferences(html: string): {
+    category: TeamItem['category'];
+    players: Array<TeamPlayer & { detailPath: string | null }>;
+  } {
     const $ = load(html);
     const playersRoot = $(selectors.teams.detailPlayers).first();
 
@@ -108,10 +133,11 @@ export class TeamsParser {
       });
     }
 
-    const players: TeamPlayer[] = [];
+    const players: Array<TeamPlayer & { detailPath: string | null }> = [];
 
     playersRoot.find(selectors.teams.detailPlayerRow).each((_index, row) => {
-      const id = extractPlayerIdFromOnClick($(row).attr('onclick'));
+      const onClick = $(row).attr('onclick');
+      const id = extractPlayerIdFromOnClick(onClick);
       const shortName = normalizeText($(row).find(selectors.teams.detailPlayerShortName).first().text());
       const fullName = normalizeText($(row).find(selectors.teams.detailPlayerFullName).first().text());
 
@@ -122,7 +148,8 @@ export class TeamsParser {
       players.push({
         id,
         shortName,
-        fullName
+        fullName,
+        detailPath: extractPlayerDetailPathFromOnClick(onClick)
       });
     });
 

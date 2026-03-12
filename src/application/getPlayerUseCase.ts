@@ -6,6 +6,7 @@ import { ParsingError } from '../shared/errors.js';
 export interface PlayerNavigator {
   fetchPlayerHtml(playerId: string): Promise<string>;
   fetchPlayerHtmlBatch?(playerIds: string[]): Promise<Record<string, string>>;
+  fetchPlayerHtmlBatchByPaths?(playerPathsById: Record<string, string>): Promise<Record<string, string>>;
 }
 
 export interface GetPlayerUseCaseDeps {
@@ -49,6 +50,41 @@ export class GetPlayerUseCase {
     const htmlByPlayerId = this.deps.navigator.fetchPlayerHtmlBatch
       ? await this.deps.navigator.fetchPlayerHtmlBatch(playerIds)
       : Object.fromEntries(await Promise.all(playerIds.map(async (playerId) => [playerId, await this.deps.navigator.fetchPlayerHtml(playerId)])));
+
+    const items = [];
+
+    for (const playerId of playerIds) {
+      const html = htmlByPlayerId[playerId];
+      if (!html) {
+        continue;
+      }
+
+      try {
+        items.push(this.parser.parse(playerId, html));
+      } catch (error) {
+        if (error instanceof ParsingError) {
+          const snapshotPath = await saveHtmlSnapshot(html, `player-${playerId}-parse-failed`);
+          error.context = { ...error.context, snapshotPath };
+        }
+
+        throw error;
+      }
+    }
+
+    return items;
+  }
+
+  async executeBatchByPaths(playerPathsById: Record<string, string>) {
+    const playerIds = Object.keys(playerPathsById);
+    if (playerIds.length === 0) {
+      return [];
+    }
+
+    const htmlByPlayerId = this.deps.navigator.fetchPlayerHtmlBatchByPaths
+      ? await this.deps.navigator.fetchPlayerHtmlBatchByPaths(playerPathsById)
+      : this.deps.navigator.fetchPlayerHtmlBatch
+        ? await this.deps.navigator.fetchPlayerHtmlBatch(playerIds)
+        : Object.fromEntries(await Promise.all(playerIds.map(async (playerId) => [playerId, await this.deps.navigator.fetchPlayerHtml(playerId)])));
 
     const items = [];
 

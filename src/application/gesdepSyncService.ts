@@ -55,10 +55,16 @@ export class GesdepSyncService {
     });
 
     try {
-      const teamsResponse = await this.deps.teamsUseCase.executeExtended();
-      const teams = teamsResponse.items;
+      const teams = await this.deps.teamsUseCase.executeExtendedWithPlayerReferences();
       const uniquePlayerIds = [...new Set(teams.flatMap((team) => team.players.map((player) => player.id)))];
       const rosterPlayerById = new Map(teams.flatMap((team) => team.players.map((player) => [player.id, player] as const)));
+      const playerPathsById = Object.fromEntries(
+        teams.flatMap((team) =>
+          team.players
+            .filter((player) => player.detailPath)
+            .map((player) => [player.id, player.detailPath!] as const)
+        )
+      );
       const syncedAt = new Date();
 
       logger.info({ teams: teams.length, players: uniquePlayerIds.length }, 'Starting Gesdep batch sync');
@@ -113,7 +119,10 @@ export class GesdepSyncService {
       let dailyTeamWorkStats = 0;
 
       try {
-        const playerDetails = await this.deps.playerUseCase.executeBatch(uniquePlayerIds);
+        const playerDetails =
+          Object.keys(playerPathsById).length > 0
+            ? await this.deps.playerUseCase.executeBatchByPaths(playerPathsById)
+            : await this.deps.playerUseCase.executeBatch(uniquePlayerIds);
         const sanitizedPlayerDetails = this.sanitizePlayerDetailsAgainstRoster(playerDetails, rosterPlayerById);
         detailedPlayers = sanitizedPlayerDetails.filter((player) => Object.keys(player.fields).length > 0).length;
 
@@ -151,7 +160,7 @@ export class GesdepSyncService {
 
         for (const team of teams) {
           try {
-            const stats = await this.deps.teamWorkStatsUseCase.execute(team.id, targetDate, targetDate);
+            const stats = await this.deps.teamWorkStatsUseCase.execute(team.id, targetDate, targetDate, team.name ?? undefined);
             await this.teamWorkStatsRepository.replaceDaily(
               team.id,
               targetDate,

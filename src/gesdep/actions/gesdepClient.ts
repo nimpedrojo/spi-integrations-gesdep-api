@@ -20,6 +20,14 @@ export const buildPlayerDetailUrl = (playerId: string): URL => {
 
 export const buildTeamWorkStatsUrl = (): URL => new URL(selectors.workStats.path, config.GESDEP_BASE_URL);
 
+const normalizeComparableText = (value: string | null | undefined) =>
+  value
+    ?.normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase() ?? '';
+
 export class GesdepClient {
   private browser?: Browser;
   private browserContext?: BrowserContext;
@@ -70,6 +78,32 @@ export class GesdepClient {
 
   private async resolvePlayerDetailUrl(page: Page, playerId: string): Promise<string> {
     return buildPlayerDetailUrl(playerId).toString();
+  }
+
+  private async resolveStatsTeamOptionValue(page: Page, teamId: string, teamName?: string) {
+    const optionValues = await page.locator(`${selectors.workStats.team} option`).evaluateAll((options) =>
+      options.map((option) => ({
+        value: option.getAttribute('value') ?? '',
+        text: option.textContent?.trim() ?? ''
+      }))
+    );
+
+    if (optionValues.some((option) => option.value === teamId)) {
+      return teamId;
+    }
+
+    if (teamName) {
+      const normalizedTarget = normalizeComparableText(teamName);
+      const byName = optionValues.find((option) => normalizeComparableText(option.text) === normalizedTarget);
+      if (byName) {
+        return byName.value;
+      }
+    }
+
+    throw new ExternalServiceError('Team is not available in Gesdep work stats selector', {
+      teamId,
+      teamName
+    });
   }
 
   async fetchHtml(url: string): Promise<string> {
@@ -201,7 +235,7 @@ export class GesdepClient {
     return results;
   }
 
-  async fetchTeamWorkStatsHtml(teamId: string, from: string, to: string): Promise<string> {
+  async fetchTeamWorkStatsHtml(teamId: string, from: string, to: string, teamName?: string): Promise<string> {
     const page = await this.openAuthenticatedPage();
 
     try {
@@ -211,7 +245,8 @@ export class GesdepClient {
       await page.waitForSelector(selectors.workStats.ready, {
         state: 'attached'
       });
-      await page.selectOption(selectors.workStats.team, teamId);
+      const statsTeamValue = await this.resolveStatsTeamOptionValue(page, teamId, teamName);
+      await page.selectOption(selectors.workStats.team, statsTeamValue);
       await page.fill(selectors.workStats.from, from);
       await page.fill(selectors.workStats.to, to);
 
@@ -228,11 +263,60 @@ export class GesdepClient {
       });
       return await page.content();
     } catch (err) {
-      logger.error({ err, teamId, from, to }, 'Reading team work stats HTML failed');
+      logger.error({ err, teamId, teamName, from, to }, 'Reading team work stats HTML failed');
       throw new ExternalServiceError('Failed to read Gesdep team work stats HTML');
     } finally {
       await page.close();
     }
+  }
+
+  async fetchPlayerHtmlBatchByPaths(playerPathsById: Record<string, string>): Promise<Record<string, string>> {
+    const entries = Object.entries(playerPathsById).filter(([, path]) => path);
+    if (entries.length === 0) {
+      return {};
+    }
+
+    await this.init();
+    const results: Record<string, string> = {};
+    const pendingEntries = [...entries];
+
+    const worker = async () => {
+      const context = await this.browser!.newContext();
+      const page = await this.loginInContext(context, {
+        username: config.GESDEP_USERNAME,
+        password: config.GESDEP_PASSWORD
+      });
+
+      try {
+        while (pendingEntries.length > 0) {
+          const entry = pendingEntries.shift();
+          if (!entry) {
+            return;
+          }
+
+          const [playerId, playerPath] = entry;
+          await page.goto(new URL(playerPath, config.GESDEP_BASE_URL).toString(), {
+            waitUntil: 'domcontentloaded'
+          });
+          await page.waitForSelector(selectors.players.card, {
+            state: 'attached'
+          });
+          results[playerId] = await page.content();
+        }
+      } catch (err) {
+        logger.error({ err }, 'Reading player detail HTML failed in batch mode using team references');
+        throw new ExternalServiceError('Failed to read Gesdep player detail HTML');
+      } finally {
+        await page.close();
+        await context.close();
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(config.GESDEP_DETAIL_CONCURRENCY, entries.length) }, async () => worker())
+    );
+
+    return results;
   }
 
   async fetchTeamHtmlBatch(teamIds: string[]): Promise<Record<string, string>> {

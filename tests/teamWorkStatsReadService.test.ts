@@ -44,7 +44,8 @@ describe('TeamWorkStatsReadService', () => {
     const service = new TeamWorkStatsReadService({
       repository: {
         hasFullCoverage: vi.fn().mockResolvedValue(false),
-        getAggregated: vi.fn()
+        getAggregated: vi.fn(),
+        findTeamName: vi.fn().mockResolvedValue('Juvenil Preferente')
       } as any,
       onlineUseCase: {
         execute
@@ -54,6 +55,6 @@ describe('TeamWorkStatsReadService', () => {
     await expect(service.get('636', '2026-03-01', '2026-03-05')).resolves.toMatchObject({
       meta: { source: 'gesdep' }
     });
-    expect(execute).toHaveBeenCalledWith('636', '2026-03-01', '2026-03-05');
+    expect(execute).toHaveBeenCalledWith('636', '2026-03-01', '2026-03-05', 'Juvenil Preferente');
   });
 });

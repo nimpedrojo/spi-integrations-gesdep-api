@@ -32,7 +32,8 @@ export class TeamWorkStatsReadService {
         throw new Error(`Team work stats ${teamId} ${from}..${to} not available`);
       }
 
-      return this.deps.onlineUseCase.execute(teamId, from, to);
+      const teamName = await this.repository.findTeamName(teamId);
+      return this.deps.onlineUseCase.execute(teamId, from, to, teamName ?? undefined);
     });
   }
 }

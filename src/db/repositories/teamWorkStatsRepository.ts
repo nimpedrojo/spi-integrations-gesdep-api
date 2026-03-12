@@ -22,6 +22,11 @@ type ExerciseAggregationRow = {
 export class TeamWorkStatsRepository {
   constructor(private readonly knex: Knex = db) {}
 
+  async findTeamName(teamId: string): Promise<string | null> {
+    const team = await this.knex('teams').select('name').where({ id: teamId }).first();
+    return team?.name ?? null;
+  }
+
   async hasFullCoverage(teamId: string, from: string, to: string): Promise<boolean> {
     const rows = await this.knex<DailySyncRow>('team_work_daily_sync')
       .select('work_date')

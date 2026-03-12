@@ -50,6 +50,29 @@ describe('TeamsParser', () => {
     });
   });
 
+  it('parses team detail player references from the fixture HTML', async () => {
+    const html = await readFile(fixturePath, 'utf8');
+    const parser = new TeamsParser();
+
+    expect(parser.parseTeamDetailsWithReferences(html)).toEqual({
+      category: 'Juvenil',
+      players: [
+        {
+          id: '3532EB3E6AD61628',
+          shortName: 'JUAN',
+          fullName: 'BENITO FERNANDEZ, JUAN',
+          detailPath: '/v3/forms/players/frmjugadores.aspx?idjug=3532EB3E6AD61628'
+        },
+        {
+          id: '8524CE5A2F109799',
+          shortName: 'HÉCTOR',
+          fullName: 'CANTALAPIEDRA VIELA, HÉCTOR',
+          detailPath: '/v3/forms/players/frmjugadores.aspx?idjug=8524CE5A2F109799'
+        }
+      ]
+    });
+  });
+
   it('throws a typed parsing error when the structure is invalid', () => {
     const parser = new TeamsParser();
 
