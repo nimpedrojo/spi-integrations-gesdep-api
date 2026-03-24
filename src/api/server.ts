@@ -11,6 +11,7 @@ import { registerTeamsRoute, RegisterTeamsRouteDeps } from './routes/teams.js';
 import { registerPlayersRoute, RegisterPlayersRouteDeps } from './routes/players.js';
 import { registerTeamWorkStatsRoute, RegisterTeamWorkStatsRouteDeps } from './routes/teamWorkStats.js';
 import { registerTeamMatchStatsRoute, RegisterTeamMatchStatsRouteDeps } from './routes/teamMatchStats.js';
+import { registerTeamMatchesRoute, RegisterTeamMatchesRouteDeps } from './routes/teamMatches.js';
 import { ensureDatabaseSchema } from '../db/schema.js';
 import { authPlugin } from './auth.js';
 
@@ -19,6 +20,7 @@ export interface BuildServerDeps {
   playersRoute?: RegisterPlayersRouteDeps;
   teamWorkStatsRoute?: RegisterTeamWorkStatsRouteDeps;
   teamMatchStatsRoute?: RegisterTeamMatchStatsRouteDeps;
+  teamMatchesRoute?: RegisterTeamMatchesRouteDeps;
 }
 
 export const buildServer = (deps: BuildServerDeps = {}) => {
@@ -92,6 +94,7 @@ export const buildServer = (deps: BuildServerDeps = {}) => {
     registerPlayersRoute(app, deps.playersRoute);
     registerTeamWorkStatsRoute(app, deps.teamWorkStatsRoute);
     registerTeamMatchStatsRoute(app, deps.teamMatchStatsRoute);
+    registerTeamMatchesRoute(app, deps.teamMatchesRoute);
   });
 
   app.setErrorHandler((err, _req, reply) => {

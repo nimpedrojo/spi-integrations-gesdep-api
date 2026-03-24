@@ -10,6 +10,7 @@ import { GetTeamWorkStatsUseCase } from './getTeamWorkStatsUseCase.js';
 import { TeamWorkStatsRepository } from '../db/repositories/teamWorkStatsRepository.js';
 import { GetTeamMatchStatsUseCase } from './getTeamMatchStatsUseCase.js';
 import { TeamMatchStatsRepository } from '../db/repositories/teamMatchStatsRepository.js';
+import { TeamMatchesRepository } from '../db/repositories/teamMatchesRepository.js';
 
 const normalizeComparableText = (value: string | null | undefined) =>
   value
@@ -35,6 +36,7 @@ export interface GesdepSyncServiceDeps {
   teamWorkStatsRepository?: TeamWorkStatsRepository;
   teamMatchStatsUseCase?: GetTeamMatchStatsUseCase;
   teamMatchStatsRepository?: TeamMatchStatsRepository;
+  teamMatchesRepository?: TeamMatchesRepository;
   knex?: Knex;
 }
 
@@ -42,11 +44,13 @@ export class GesdepSyncService {
   private readonly knex: Knex;
   private readonly teamWorkStatsRepository: TeamWorkStatsRepository;
   private readonly teamMatchStatsRepository: TeamMatchStatsRepository;
+  private readonly teamMatchesRepository: TeamMatchesRepository;
 
   constructor(private readonly deps: GesdepSyncServiceDeps) {
     this.knex = deps.knex ?? db;
     this.teamWorkStatsRepository = deps.teamWorkStatsRepository ?? new TeamWorkStatsRepository(this.knex);
     this.teamMatchStatsRepository = deps.teamMatchStatsRepository ?? new TeamMatchStatsRepository(this.knex);
+    this.teamMatchesRepository = deps.teamMatchesRepository ?? new TeamMatchesRepository(this.knex);
   }
 
   async syncAll() {
@@ -124,6 +128,7 @@ export class GesdepSyncService {
       let detailedPlayers = 0;
       let dailyTeamWorkStats = 0;
       let teamMatchSnapshots = 0;
+      let teamMatches = 0;
 
       try {
         const playerDetails =
@@ -185,8 +190,10 @@ export class GesdepSyncService {
       if (this.deps.teamMatchStatsUseCase) {
         for (const team of teams) {
           try {
-            const snapshots = await this.deps.teamMatchStatsUseCase.executeAllSnapshots(team.id, team.name ?? undefined);
-            for (const snapshot of snapshots) {
+            const snapshotBundle = await this.deps.teamMatchStatsUseCase.executeAllSnapshots(team.id, team.name ?? undefined);
+            await this.teamMatchesRepository.replaceTeamMatches(team.id, snapshotBundle.teamName, snapshotBundle.matches, syncedAt);
+            teamMatches += snapshotBundle.matches.length;
+            for (const snapshot of snapshotBundle.snapshots) {
               await this.teamMatchStatsRepository.replaceSnapshot(
                 team.id,
                 snapshot.competition,
@@ -212,7 +219,8 @@ export class GesdepSyncService {
             players: basicPlayers.length,
             detailedPlayers,
             dailyTeamWorkStats,
-            teamMatchSnapshots
+            teamMatchSnapshots,
+            teamMatches
           })
         });
 
@@ -222,7 +230,8 @@ export class GesdepSyncService {
         teams: teams.length,
         players: basicPlayers.length,
         dailyTeamWorkStats,
-        teamMatchSnapshots
+        teamMatchSnapshots,
+        teamMatches
       };
     } catch (error) {
       await this.knex('sync_runs')

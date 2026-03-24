@@ -108,6 +108,7 @@ POST /auth/token
 GET /teams
 GET /teams/extended
 GET /teams/:teamId/work-stats?from=YYYY-MM-DD&to=YYYY-MM-DD
+GET /teams/:teamId/matches?competition=all|league|cup|friendly|tournament&result=all|won|drawn|lost
 GET /teams/:teamId/matches/stats?competition=all|league|cup|friendly|tournament&result=all|won|drawn|lost
 GET /players/:id
 GET /docs
@@ -119,6 +120,7 @@ Autenticacion:
 - `GET /teams`
 - `GET /teams/extended`
 - `GET /teams/:teamId/work-stats?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- `GET /teams/:teamId/matches?competition=all|league|cup|friendly|tournament&result=all|won|drawn|lost`
 - `GET /teams/:teamId/matches/stats?competition=all|league|cup|friendly|tournament&result=all|won|drawn|lost`
 - `GET /players/:id`
 
@@ -143,6 +145,12 @@ curl "http://localhost:3000/teams/636/work-stats?from=2026-03-01&to=2026-03-07" 
 
 Ejemplo de partidos jugados:
 ```bash
+curl "http://localhost:3000/teams/636/matches?competition=league&result=all" \
+  -H "authorization: Bearer TU_TOKEN"
+```
+
+Ejemplo de resumen de partidos:
+```bash
 curl "http://localhost:3000/teams/636/matches/stats?competition=league&result=all" \
   -H "authorization: Bearer TU_TOKEN"
 ```
@@ -165,11 +173,16 @@ Semántica actual:
   - intenta responder desde cache y MySQL si el rango completo ya fue materializado por el batch diario
   - si falta algun dia del rango, hace fallback online a Gesdep
   - devuelve agregados por metodo de entrenamiento y el Top 20 de ejercicios
+- `/teams/:teamId/matches`:
+  - acepta filtros opcionales `competition` y `result`
+  - intenta responder desde cache y MySQL si existe listado persistido de la temporada del equipo
+  - si no existe snapshot local, hace fallback online a Gesdep
+  - devuelve rival, resultado, fecha, lugar y competicion de cada partido
 - `/teams/:teamId/matches/stats`:
   - acepta filtros opcionales `competition` y `result`
   - intenta responder desde cache y MySQL si existe snapshot de temporada del equipo
   - si no existe snapshot local, hace fallback online a Gesdep
-  - devuelve resumen global/local/visitante y el listado de partidos filtrado
+  - devuelve resumen global/local/visitante
 
 El campo `meta.source` puede ser:
 - `mysql`
@@ -211,6 +224,7 @@ Tablas creadas automáticamente:
 - `team_work_daily_sync`
 - `team_work_method_daily`
 - `team_work_exercise_daily`
+- `team_matches`
 - `team_match_stat_snapshots`
 - `sync_runs`
 

@@ -129,4 +129,25 @@ export const ensureDatabaseSchema = async () => {
       table.index(['team_id']);
     });
   }
+
+  const hasTeamMatches = await db.schema.hasTable('team_matches');
+  if (!hasTeamMatches) {
+    await db.schema.createTable('team_matches', (table) => {
+      table.string('team_id', 64).notNullable();
+      table.string('match_id', 128).notNullable();
+      table.string('team_name', 255).nullable();
+      table.string('opponent_name', 255).notNullable();
+      table.boolean('is_home').notNullable();
+      table.integer('team_score').notNullable().defaultTo(0);
+      table.integer('opponent_score').notNullable().defaultTo(0);
+      table.string('result', 16).notNullable();
+      table.string('competition', 32).notNullable();
+      table.string('kickoff_at', 64).notNullable();
+      table.string('venue', 255).nullable();
+      table.timestamp('synced_at').notNullable();
+      table.primary(['team_id', 'match_id']);
+      table.foreign('team_id').references('teams.id').onDelete('CASCADE');
+      table.index(['team_id', 'competition', 'result']);
+    });
+  }
 };

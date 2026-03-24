@@ -130,6 +130,21 @@ export const teamMatchStatsResponseSchema = z.object({
   })
 });
 
+export const teamMatchesResponseSchema = z.object({
+  item: z.object({
+    teamId: z.string(),
+    teamName: z.string().nullable(),
+    filters: z.object({
+      competition: matchCompetitionSchema,
+      result: matchResultFilterSchema
+    }),
+    matches: z.array(teamMatchSchema)
+  }),
+  meta: z.object({
+    source: sourceSchema
+  })
+});
+
 export type TeamListItem = z.infer<typeof basicTeamItemSchema>;
 export type TeamItem = z.infer<typeof extendedTeamItemSchema>;
 export type ListTeamsResponse = z.infer<typeof listTeamsResponseSchema>;
@@ -145,3 +160,4 @@ export type MatchResultFilter = z.infer<typeof matchResultFilterSchema>;
 export type TeamMatch = z.infer<typeof teamMatchSchema>;
 export type MatchStatsBlock = z.infer<typeof matchStatsBlockSchema>;
 export type TeamMatchStatsResponse = z.infer<typeof teamMatchStatsResponseSchema>;
+export type TeamMatchesResponse = z.infer<typeof teamMatchesResponseSchema>;

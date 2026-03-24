@@ -3,9 +3,11 @@ import {
   MatchCompetition,
   MatchResultFilter,
   TeamMatch,
+  TeamMatchesResponse,
   TeamMatchStatsResponse,
   MatchStatsBlock,
-  teamMatchStatsResponseSchema
+  teamMatchStatsResponseSchema,
+  teamMatchesResponseSchema
 } from '../../domain/types.js';
 import { ParsingError } from '../../shared/errors.js';
 
@@ -218,6 +220,24 @@ export class TeamMatchStatsParser {
         result
       },
       stats: summarizeMatches(filteredMatches)
+    });
+  }
+
+  buildMatchesResponse(
+    teamId: string,
+    teamName: string | null,
+    matches: TeamMatch[],
+    competition: MatchCompetition,
+    result: MatchResultFilter
+  ): TeamMatchesResponse['item'] {
+    return teamMatchesResponseSchema.shape.item.parse({
+      teamId,
+      teamName,
+      filters: {
+        competition,
+        result
+      },
+      matches: applyFilters(matches, competition, result)
     });
   }
 }
